@@ -1,0 +1,10 @@
+campaign_name,filter_arpu_segment,filter_data_segment,filter_call_segment,filter_current_tariff,target_tariff,channel
+c01_t8_digital_ads_MID_ALL_ALL_t1+t2+t3+t4+t12+t13+6more,MID,,,tariff_1;tariff_2;tariff_3;tariff_4;tariff_12;tariff_13;tariff_15;tariff_16;tariff_17;tariff_18;tariff_19;tariff_20,tariff_8,digital_ads
+c02_t9_sms_LOW_ALL_ALL_t1+t2+t3+t4+t7+t8+7more,LOW,,,tariff_1;tariff_2;tariff_3;tariff_4;tariff_7;tariff_8;tariff_13;tariff_14;tariff_15;tariff_16;tariff_17;tariff_18;tariff_19,tariff_9,sms
+c03_t13_push_LOW_ALL_ALL_t2+t5+t6+t20,LOW,,,tariff_2;tariff_5;tariff_6;tariff_20,tariff_13,push
+c04_t9_push_LOW_ALL_ALL_t6+t10,LOW,,,tariff_6;tariff_10,tariff_9,push
+c05_t8_sms_LOW_ALL_ALL_t2+t13+t17+t18+t20,LOW,,,tariff_2;tariff_13;tariff_17;tariff_18;tariff_20,tariff_8,sms
+c06_t8_push_LOW_ALL_ALL_t9+t11+t12+t13+t17+t20,LOW,,,tariff_9;tariff_11;tariff_12;tariff_13;tariff_17;tariff_20,tariff_8,push
+c07_t13_sms_LOW_ALL_ALL_t6,LOW,,,tariff_6,tariff_13,sms
+c08_t5_push_HIGH_ALL_ALL_t8,HIGH,,,tariff_8,tariff_5,push
+c09_t8_push_MID_ALL_ALL_t9+t11,MID,,,tariff_9;tariff_11,tariff_8,push

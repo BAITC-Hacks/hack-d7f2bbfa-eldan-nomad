@@ -1,0 +1,640 @@
+{
+  "agent_module": "agent",
+  "llm_forced_off": true,
+  "world_seed": 20260923,
+  "agent_sha256": "fda6f09b80dc33496079edba38ef9dd4079baa18849660053872baad229e9015",
+  "summaries": [
+    {
+      "world": "mock",
+      "runs": 5,
+      "median": 4704623.914529705,
+      "q25": 4435402.054732959,
+      "q75": 4891454.645431604,
+      "iqr": 456052.59069864545,
+      "min": 4400736.545486871,
+      "max": 5122772.396752497,
+      "share_positive": 1.0,
+      "oracle_net": null,
+      "regret": null
+    },
+    {
+      "world": "scale_x2",
+      "runs": 5,
+      "median": 9830904.92447622,
+      "q25": 9762841.19626066,
+      "q75": 10012784.593068723,
+      "iqr": 249943.39680806175,
+      "min": 9609190.443090178,
+      "max": 10621951.767711632,
+      "share_positive": 1.0,
+      "oracle_net": null,
+      "regret": null
+    },
+    {
+      "world": "scale_x0.5",
+      "runs": 5,
+      "median": 2030006.979286518,
+      "q25": 1807624.1480320957,
+      "q75": 2087749.7319399472,
+      "iqr": 280125.5839078515,
+      "min": 1765439.561817445,
+      "max": 2101403.176727703,
+      "share_positive": 1.0,
+      "oracle_net": null,
+      "regret": null
+    },
+    {
+      "world": "high_plus_0.15",
+      "runs": 5,
+      "median": 4657860.431665079,
+      "q25": 4643948.697838737,
+      "q75": 5457233.901648519,
+      "iqr": 813285.2038097819,
+      "min": 4219448.844979219,
+      "max": 5786526.627244199,
+      "share_positive": 1.0,
+      "oracle_net": null,
+      "regret": null
+    },
+    {
+      "world": "permute_targets",
+      "runs": 5,
+      "median": 573315.9105869331,
+      "q25": 554058.816905309,
+      "q75": 654763.0056999958,
+      "iqr": 100704.18879468681,
+      "min": 353425.04638938245,
+      "max": 825399.1535237521,
+      "share_positive": 1.0,
+      "oracle_net": null,
+      "regret": null
+    },
+    {
+      "world": "saturation",
+      "runs": 5,
+      "median": 11806095.218203988,
+      "q25": 11732635.488301158,
+      "q75": 12785666.8041644,
+      "iqr": 1053031.3158632424,
+      "min": 11669922.531095741,
+      "max": 13158359.783616774,
+      "share_positive": 1.0,
+      "oracle_net": null,
+      "regret": null
+    },
+    {
+      "world": "flip_sign_30",
+      "runs": 5,
+      "median": 1421236.6784714735,
+      "q25": 1378979.709258367,
+      "q75": 1433596.8097175132,
+      "iqr": 54617.10045914608,
+      "min": 890523.6988898742,
+      "max": 1719191.063711309,
+      "share_positive": 1.0,
+      "oracle_net": null,
+      "regret": null
+    },
+    {
+      "world": "prior_misspecified",
+      "runs": 5,
+      "median": 11635061.54487317,
+      "q25": 9197867.877552398,
+      "q75": 13248758.943663646,
+      "iqr": 4050891.066111248,
+      "min": 7187188.964866841,
+      "max": 13583783.816768754,
+      "share_positive": 1.0,
+      "oracle_net": null,
+      "regret": null
+    },
+    {
+      "world": "price_decorrelated",
+      "runs": 5,
+      "median": 4244424.175006501,
+      "q25": 4130799.032222707,
+      "q75": 4278092.5550818555,
+      "iqr": 147293.52285914868,
+      "min": 4036009.54684339,
+      "max": 4922014.291604443,
+      "share_positive": 1.0,
+      "oracle_net": null,
+      "regret": null
+    }
+  ],
+  "runs": {
+    "mock": [
+      {
+        "seed": 0,
+        "net": 4400736.545486871,
+        "gross": 4500722.545486871,
+        "cost": 99986.0,
+        "contacts": 14633,
+        "campaigns": 28,
+        "final_campaigns": 8,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 1,
+        "net": 4704623.914529705,
+        "gross": 4804515.914529705,
+        "cost": 99892.0,
+        "contacts": 14022,
+        "campaigns": 27,
+        "final_campaigns": 7,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 2,
+        "net": 4891454.645431604,
+        "gross": 4991428.645431604,
+        "cost": 99974.0,
+        "contacts": 14952,
+        "campaigns": 26,
+        "final_campaigns": 8,
+        "pilots": 18,
+        "error": null
+      },
+      {
+        "seed": 3,
+        "net": 5122772.396752497,
+        "gross": 5222708.396752497,
+        "cost": 99936.0,
+        "contacts": 12991,
+        "campaigns": 30,
+        "final_campaigns": 10,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 4,
+        "net": 4435402.054732959,
+        "gross": 4535370.054732959,
+        "cost": 99968.0,
+        "contacts": 13743,
+        "campaigns": 27,
+        "final_campaigns": 7,
+        "pilots": 20,
+        "error": null
+      }
+    ],
+    "scale_x2": [
+      {
+        "seed": 0,
+        "net": 10012784.593068723,
+        "gross": 10112734.593068723,
+        "cost": 99950.0,
+        "contacts": 14934,
+        "campaigns": 26,
+        "final_campaigns": 9,
+        "pilots": 17,
+        "error": null
+      },
+      {
+        "seed": 1,
+        "net": 9762841.19626066,
+        "gross": 9862819.19626066,
+        "cost": 99978.0,
+        "contacts": 14607,
+        "campaigns": 28,
+        "final_campaigns": 8,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 2,
+        "net": 9609190.443090178,
+        "gross": 9709170.443090178,
+        "cost": 99980.0,
+        "contacts": 14970,
+        "campaigns": 25,
+        "final_campaigns": 9,
+        "pilots": 16,
+        "error": null
+      },
+      {
+        "seed": 3,
+        "net": 10621951.767711632,
+        "gross": 10721925.767711632,
+        "cost": 99974.0,
+        "contacts": 12762,
+        "campaigns": 29,
+        "final_campaigns": 9,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 4,
+        "net": 9830904.92447622,
+        "gross": 9930904.92447622,
+        "cost": 100000.0,
+        "contacts": 14946,
+        "campaigns": 25,
+        "final_campaigns": 9,
+        "pilots": 16,
+        "error": null
+      }
+    ],
+    "scale_x0.5": [
+      {
+        "seed": 0,
+        "net": 2101403.176727703,
+        "gross": 2190983.176727703,
+        "cost": 89580.0,
+        "contacts": 14979,
+        "campaigns": 28,
+        "final_campaigns": 8,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 1,
+        "net": 1807624.1480320957,
+        "gross": 1907590.1480320957,
+        "cost": 99966.0,
+        "contacts": 13069,
+        "campaigns": 29,
+        "final_campaigns": 9,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 2,
+        "net": 2087749.7319399472,
+        "gross": 2187679.731939947,
+        "cost": 99930.0,
+        "contacts": 13743,
+        "campaigns": 27,
+        "final_campaigns": 7,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 3,
+        "net": 2030006.979286518,
+        "gross": 2115106.979286518,
+        "cost": 85100.0,
+        "contacts": 8255,
+        "campaigns": 24,
+        "final_campaigns": 4,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 4,
+        "net": 1765439.561817445,
+        "gross": 1861587.561817445,
+        "cost": 96148.0,
+        "contacts": 12273,
+        "campaigns": 26,
+        "final_campaigns": 6,
+        "pilots": 20,
+        "error": null
+      }
+    ],
+    "high_plus_0.15": [
+      {
+        "seed": 0,
+        "net": 5457233.901648519,
+        "gross": 5556079.901648519,
+        "cost": 98846.0,
+        "contacts": 13207,
+        "campaigns": 26,
+        "final_campaigns": 6,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 1,
+        "net": 5786526.627244199,
+        "gross": 5886506.627244199,
+        "cost": 99980.0,
+        "contacts": 14581,
+        "campaigns": 28,
+        "final_campaigns": 8,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 2,
+        "net": 4219448.844979219,
+        "gross": 4311914.844979219,
+        "cost": 92466.0,
+        "contacts": 14994,
+        "campaigns": 20,
+        "final_campaigns": 5,
+        "pilots": 15,
+        "error": null
+      },
+      {
+        "seed": 3,
+        "net": 4643948.697838737,
+        "gross": 4743948.697838737,
+        "cost": 100000.0,
+        "contacts": 10638,
+        "campaigns": 28,
+        "final_campaigns": 8,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 4,
+        "net": 4657860.431665079,
+        "gross": 4757854.431665079,
+        "cost": 99994.0,
+        "contacts": 13694,
+        "campaigns": 27,
+        "final_campaigns": 7,
+        "pilots": 20,
+        "error": null
+      }
+    ],
+    "permute_targets": [
+      {
+        "seed": 0,
+        "net": 573315.9105869331,
+        "gross": 663777.9105869331,
+        "cost": 90462.0,
+        "contacts": 10745,
+        "campaigns": 27,
+        "final_campaigns": 7,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 1,
+        "net": 554058.816905309,
+        "gross": 652774.816905309,
+        "cost": 98716.0,
+        "contacts": 11886,
+        "campaigns": 27,
+        "final_campaigns": 7,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 2,
+        "net": 353425.04638938245,
+        "gross": 452643.04638938245,
+        "cost": 99218.0,
+        "contacts": 11884,
+        "campaigns": 29,
+        "final_campaigns": 9,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 3,
+        "net": 654763.0056999958,
+        "gross": 744425.0056999958,
+        "cost": 89662.0,
+        "contacts": 5826,
+        "campaigns": 26,
+        "final_campaigns": 6,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 4,
+        "net": 825399.1535237521,
+        "gross": 914479.1535237521,
+        "cost": 89080.0,
+        "contacts": 11464,
+        "campaigns": 27,
+        "final_campaigns": 7,
+        "pilots": 20,
+        "error": null
+      }
+    ],
+    "saturation": [
+      {
+        "seed": 0,
+        "net": 11669922.531095741,
+        "gross": 11769916.531095741,
+        "cost": 99994.0,
+        "contacts": 14962,
+        "campaigns": 24,
+        "final_campaigns": 8,
+        "pilots": 16,
+        "error": null
+      },
+      {
+        "seed": 1,
+        "net": 12785666.8041644,
+        "gross": 12885616.8041644,
+        "cost": 99950.0,
+        "contacts": 14935,
+        "campaigns": 24,
+        "final_campaigns": 9,
+        "pilots": 15,
+        "error": null
+      },
+      {
+        "seed": 2,
+        "net": 11806095.218203988,
+        "gross": 11906075.218203988,
+        "cost": 99980.0,
+        "contacts": 14970,
+        "campaigns": 25,
+        "final_campaigns": 9,
+        "pilots": 16,
+        "error": null
+      },
+      {
+        "seed": 3,
+        "net": 13158359.783616774,
+        "gross": 13258353.783616774,
+        "cost": 99994.0,
+        "contacts": 13096,
+        "campaigns": 29,
+        "final_campaigns": 9,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 4,
+        "net": 11732635.488301158,
+        "gross": 11832615.488301158,
+        "cost": 99980.0,
+        "contacts": 14970,
+        "campaigns": 25,
+        "final_campaigns": 9,
+        "pilots": 16,
+        "error": null
+      }
+    ],
+    "flip_sign_30": [
+      {
+        "seed": 0,
+        "net": 1433596.8097175132,
+        "gross": 1529270.8097175132,
+        "cost": 95674.0,
+        "contacts": 10281,
+        "campaigns": 28,
+        "final_campaigns": 8,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 1,
+        "net": 1719191.063711309,
+        "gross": 1812745.063711309,
+        "cost": 93554.0,
+        "contacts": 10796,
+        "campaigns": 26,
+        "final_campaigns": 6,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 2,
+        "net": 1378979.709258367,
+        "gross": 1477315.709258367,
+        "cost": 98336.0,
+        "contacts": 9763,
+        "campaigns": 27,
+        "final_campaigns": 7,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 3,
+        "net": 1421236.6784714735,
+        "gross": 1520066.6784714735,
+        "cost": 98830.0,
+        "contacts": 5911,
+        "campaigns": 26,
+        "final_campaigns": 6,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 4,
+        "net": 890523.6988898742,
+        "gross": 948951.6988898742,
+        "cost": 58428.0,
+        "contacts": 9763,
+        "campaigns": 26,
+        "final_campaigns": 6,
+        "pilots": 20,
+        "error": null
+      }
+    ],
+    "prior_misspecified": [
+      {
+        "seed": 0,
+        "net": 7187188.964866841,
+        "gross": 7287108.964866841,
+        "cost": 99920.0,
+        "contacts": 14195,
+        "campaigns": 29,
+        "final_campaigns": 9,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 1,
+        "net": 11635061.54487317,
+        "gross": 11735043.54487317,
+        "cost": 99982.0,
+        "contacts": 14992,
+        "campaigns": 23,
+        "final_campaigns": 8,
+        "pilots": 15,
+        "error": null
+      },
+      {
+        "seed": 2,
+        "net": 13583783.816768754,
+        "gross": 13683747.816768754,
+        "cost": 99964.0,
+        "contacts": 14840,
+        "campaigns": 20,
+        "final_campaigns": 8,
+        "pilots": 12,
+        "error": null
+      },
+      {
+        "seed": 3,
+        "net": 13248758.943663646,
+        "gross": 13326056.943663646,
+        "cost": 77298.0,
+        "contacts": 15000,
+        "campaigns": 20,
+        "final_campaigns": 7,
+        "pilots": 13,
+        "error": null
+      },
+      {
+        "seed": 4,
+        "net": 9197867.877552398,
+        "gross": 9295091.877552398,
+        "cost": 97224.0,
+        "contacts": 14971,
+        "campaigns": 19,
+        "final_campaigns": 7,
+        "pilots": 12,
+        "error": null
+      }
+    ],
+    "price_decorrelated": [
+      {
+        "seed": 0,
+        "net": 4036009.54684339,
+        "gross": 4135995.54684339,
+        "cost": 99986.0,
+        "contacts": 14633,
+        "campaigns": 28,
+        "final_campaigns": 8,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 1,
+        "net": 4244424.175006501,
+        "gross": 4344408.175006501,
+        "cost": 99984.0,
+        "contacts": 14503,
+        "campaigns": 29,
+        "final_campaigns": 9,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 2,
+        "net": 4278092.5550818555,
+        "gross": 4378038.5550818555,
+        "cost": 99946.0,
+        "contacts": 14400,
+        "campaigns": 28,
+        "final_campaigns": 8,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 3,
+        "net": 4922014.291604443,
+        "gross": 5021950.291604443,
+        "cost": 99936.0,
+        "contacts": 12991,
+        "campaigns": 30,
+        "final_campaigns": 10,
+        "pilots": 20,
+        "error": null
+      },
+      {
+        "seed": 4,
+        "net": 4130799.032222707,
+        "gross": 4230791.032222707,
+        "cost": 99992.0,
+        "contacts": 14280,
+        "campaigns": 28,
+        "final_campaigns": 8,
+        "pilots": 20,
+        "error": null
+      }
+    ]
+  }
+}

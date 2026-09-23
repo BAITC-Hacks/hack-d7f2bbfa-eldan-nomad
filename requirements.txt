@@ -1,0 +1,22 @@
+# Runtime dependencies for agent.py / local_eval.py / make_submission.py
+# Python >= 3.11 (tested on 3.13.2)
+#
+#   pip install -r requirements.txt
+#   python make_submission.py
+#
+# LLM key is read from os.environ["OPENAI_API_KEY"]. If the LLM libraries are
+# missing or the API fails, the agent falls back to its deterministic logic.
+
+# core data stack (tested: pandas 3.0.6, numpy 2.5.3)
+pandas>=2.2,<4
+numpy>=1.26,<3
+
+# LLM layer (tested: pydantic 2.13.5, pydantic-ai-slim 2.48.0, openai 3.19.0)
+pydantic>=2.10,<3
+pydantic-ai-slim[openai]>=2.40,<3
+openai>=1.99
+
+# optional: loads OPENAI_API_KEY from a local .env (tested: 1.2.3)
+python-dotenv>=1.0
+
+# dev only (not needed to run the agent): pytest>=8

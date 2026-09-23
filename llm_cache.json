@@ -1,0 +1,14 @@
+{
+ "992da9ddd60a875d2b20ae7c038e90557be902ef20cedea47cc38347ad7cc12d": {
+  "agent": "RiskReviewer",
+  "output": {
+   "analyst_summary": "Three campaigns with lower probability of positive net profit were identified as risky. Their removal maintains a strong overall net profit, reducing risk exposure without significant downside.",
+   "rationale": "These three campaigns have p_pos below 0.9, indicating higher risk. Removing them does not cause a meaningful loss in net profit, as shown by the simulation without these campaigns.",
+   "veto": [
+    "c08_t5_push_HIGH_ALL_ALL_t8",
+    "c09_t8_push_MID_ALL_ALL_t9+t11",
+    "c06_t8_push_LOW_ALL_ALL_t9+t11+t12+t13+t17+t20"
+   ]
+  }
+ }
+}

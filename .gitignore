@@ -33,6 +33,9 @@ htmlcov/
 coverage.xml
 *.cover
 
+# AI agentic plans
+/plans
+
 # Jupyter
 .ipynb_checkpoints/
 

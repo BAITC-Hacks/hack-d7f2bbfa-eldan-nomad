@@ -1,0 +1,21 @@
+[project]
+name = "hack-d7f2bbfa-eldan-nomad"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "numpy>=2.5.3",
+    "openai>=3.19.0",
+    "pandas>=3.0.6",
+    "pydantic-ai>=2.48.0",
+    "python-dotenv>=1.2.3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

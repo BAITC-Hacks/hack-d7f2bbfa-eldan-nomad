@@ -1,5 +1,9 @@
 # Participant-guide compliance audit
 
+Historical audit record. Current release decisions, diagnostics and verification:
+[release_review.md](release_review.md). In the current release, extra validation
+lives in `tools/preflight.py` / `tools/eval_checks.py`; organizer scripts are unchanged.
+
 Source of truth: [PARTICIPANT_GUIDE.pdf](../task/PARTICIPANT_GUIDE.pdf), especially page 3, sections 7-10.
 All amounts below are synthetic task units. Scores include pilot effects/costs and use the organizer's scoring formula.
 

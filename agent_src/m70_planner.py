@@ -9,7 +9,7 @@ from agent_src.contract import *  # noqa: F401,F403  bundle:strip
 #   реализованная ценность = net_mean - lm*cost - lr*n выбранного варианта (риск-нейтральная оценка
 #                            правила, избегающего риска).
 # KG(arm, p, n) = E_y[V_after(y)] - V_before, y ~ N(m_p, sd_p^2 + s^2/n), интегрирование по узлам Гаусса-Эрмита;
-# апостериор после y берётся из model.posterior_after: отдельные наклоны для y < 0 и y >= 0, 3 вызова на канал.
+# апостериор после y аппроксимируется по model.posterior_after: 2 вызова на канал.
 # Итоговая оценка = KG + immediate - n*cost_p*(1 + lm) - lr*n + бонус подтверждения, где immediate — собственный
 # ожидаемый прирост лифта пилота сверх финального плана, выбранного после y (клиенты пилота сохраняют
 # max(лифт пилота, финальный лифт)), проинтегрированный по тем же узлам Гаусса-Эрмита и умноженный на ожидаемую
@@ -292,34 +292,26 @@ class PilotPlanner:
         self._post_cache[key] = (nobs, m, s)
         return m, s
 
-    def _after_piecewise(self, arm: tuple, p_ch: str, n: int) -> Optional[tuple]:
-        """Апостериор после y в виде массивов (mean(0), отрицательный наклон, положительный наклон, sd).
-
-        ArmModel дисконтирует положительные данные при масштабировании между каналами,
-        но переносит отрицательные без дисконта. Каждая половина аффинна с тем же
-        свободным членом и дисперсией, поэтому три пробы точно воспроизводят каждый
-        узел GH без подгонки одной прямой через излом в нуле.
-        """
+    def _after_linear(self, arm: tuple, p_ch: str, n: int, y_lo: float, y_hi: float) -> Optional[tuple]:
+        """Posterior after y on p_ch for each eval channel as (mean(y_lo), slope, sd) arrays, or None."""
         C = len(self._channels)
         a = np.zeros(C)
-        b_neg = np.zeros(C)
-        b_pos = np.zeros(C)
+        b = np.zeros(C)
         s = np.zeros(C)
+        dy = y_hi - y_lo
         for j, c in enumerate(self._channels):
             try:
-                lo = self.model.posterior_after(arm, p_ch, -1.0, n, c)
-                zero = self.model.posterior_after(arm, p_ch, 0.0, n, c)
-                hi = self.model.posterior_after(arm, p_ch, 1.0, n, c)
-                lo_m, zero_m, hi_m, sd = float(lo.mean), float(zero.mean), float(hi.mean), float(zero.sd)
+                lo = self.model.posterior_after(arm, p_ch, y_lo, n, c)
+                hi = self.model.posterior_after(arm, p_ch, y_hi, n, c)
+                lo_m, hi_m, sd = float(lo.mean), float(hi.mean), float(hi.sd)
             except Exception:  # noqa: BLE001
                 return None
-            if not all(math.isfinite(v) for v in (lo_m, zero_m, hi_m, sd)):
+            if not (math.isfinite(lo_m) and math.isfinite(hi_m) and math.isfinite(sd)):
                 return None
-            a[j] = zero_m
-            b_neg[j] = zero_m - lo_m
-            b_pos[j] = hi_m - zero_m
+            a[j] = lo_m
+            b[j] = (hi_m - lo_m) / dy if dy > 0 else 0.0
             s[j] = max(sd, 0.0)
-        return a, b_neg, b_pos, s
+        return a, b, s
 
     # ------------------------------------------------------------------ арифметика вариантов
 
@@ -543,22 +535,21 @@ class PilotPlanner:
     def _kg(self, arm: tuple, ev: _KGCellEval, t: int, pj: int, p_ch: str, n: int, m_p: float, sd_p: float,
             s2: float, comp_in: tuple, comp_out: tuple, thr: tuple, si: int, fresh: float,
             lm: float, lr: float) -> Optional[tuple]:
-        """(KG, immediate) пилота размера n на канале p_ch в sub si; KG = E_y[V_after] - V_before.
+        """(KG, immediate) of a pilot of size n on channel p_ch in sub si; KG = E_y[V_after] - V_before.
 
-        comp_in / comp_out: лучший конкурент на sub, когда arm входит / не входит в top-k targets allocator;
-        thr = (proxy, index) k-го другого target (arm допустим тогда и только тогда, когда ранжируется выше него).
+        comp_in / comp_out: best competitor per sub when the arm is / is not in the allocator's top-k targets;
+        thr = (proxy, index) of the k-th other target (the arm is eligible iff it ranks above it).
         """
         pilot_mp = float(ev.mean_p[si])
         pred_sd = math.sqrt(max(sd_p, 0.0) ** 2 + s2 / max(n, 1))
         if not math.isfinite(pred_sd) or pred_sd <= 0:
             return 0.0, n * fresh * m_p * pilot_mp
-        lin = self._after_piecewise(arm, p_ch, n)
+        lin = self._after_linear(arm, p_ch, n, m_p - pred_sd, m_p + pred_sd)
         if lin is None:
             return None
-        a, b_neg, b_pos, sd_after = lin
+        a, b, sd_after = lin
         ys = m_p + pred_sd * self._gh_x  # (G,)
-        b = np.where(ys[:, None] < 0.0, b_neg[None, :], b_pos[None, :])
-        M = a[None, :] + b * ys[:, None]  # (G, C)
+        M = a[None, :] + b[None, :] * (ys[:, None] - (m_p - pred_sd))  # (G, C)
         D = np.broadcast_to(sd_after[None, :], M.shape)
         sc, val, _, _, _, _, gpc = self._best_over_channels(M, D, ev.n, ev.sum_p, lm, lr)  # (G, S)
         prox = (M / self._ch_mult[None, :]).max(axis=1)  # (G,)
@@ -573,7 +564,7 @@ class PilotPlanner:
         comp_b = comp_in if bool(ev.elig[t]) else comp_out
         wins_b = bool(ev.elig[t]) & (ev.score[t] > 0) & (ev.score[t] > comp_b[0])
         v_before = float(np.where(wins_b, ev.value[t], comp_b[1]).sum())
-        # immediate: клиенты пилота сохраняют max(pilot lift, final lift плана, выбранного после y)
+        # immediate: pilot customers keep max(pilot lift, final lift of the plan chosen after y)
         final_pc = np.where(wins[:, si], gpc[:, si], o_gpc[:, si])  # (G,) nan = sub not deployed
         pilot_pc = M[:, pj] * pilot_mp
         inc = np.where(np.isfinite(final_pc), np.maximum(0.0, pilot_pc - np.nan_to_num(final_pc)), pilot_pc)

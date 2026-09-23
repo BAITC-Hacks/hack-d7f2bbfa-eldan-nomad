@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from dataclasses import replace
 
 import pytest
 
@@ -119,15 +120,116 @@ def test_agent_act_inside_running_event_loop(tmp_path):
 # --------------------------------------------------------------------------- review / veto
 
 
-def test_veto_applied_in_decide_mode(tmp_path):
+def test_harmful_veto_rejected_in_decide_mode(tmp_path):
     F.FakeLLM.veto = ["c01_tariff_3_sms_HIGH"]
     orch = Orchestrator(_cfg(tmp_path), components=F.fake_components(), llm_mode="decide")
     out = run_coro(orch.run(F.FakeEnv()))
-    assert len(out) == 1
-    assert out[0]["filter_arpu_segment"] == "MID"
+    assert len(out) == 2
     # simulated net minus the pilot-overlap over-count on the kept MID sub (2 customers · 8500 · 0.2)
     assert orch.llm.what_if_result["net"] == pytest.approx(99992.0 - 3400.0)
     assert orch.extra["review"]["veto"] == ["c01_tariff_3_sms_HIGH"]
+    assert orch.extra["review"]["decision"] == "lower_expected_net"
+    assert not orch.extra["review"]["applied"] and not orch.review.applied
+
+
+def _review_fixture(tmp_path):
+    env = F.FakeEnv()
+    orch = Orchestrator(_cfg(tmp_path), components=F.fake_components(), llm_mode="off")
+    run_coro(orch.run(env))
+    F.FakeLLM.veto = [orch.campaigns[0]["campaign_name"]]
+    orch.llm = F.FakeLLM(orch.cfg, "decide", "", orch.log)
+    return orch, env
+
+
+@pytest.mark.parametrize("source", ["llm", "cache"])
+def test_veto_acceptance_uses_net_after_pilot_overlap(tmp_path, monkeypatch, source):
+    orch, env = _review_fixture(tmp_path)
+    original_plan = orch.plan
+    simulate = orch._simulate
+
+    def slightly_lower_raw_net(camps, budget, contacts):
+        r = simulate(camps, budget, contacts)
+        return replace(r, net=200000.0 if len(camps) == 2 else 199000.0)
+
+    async def proposal(*args):
+        from agent_src.contract import ReviewOutcome
+
+        return ReviewOutcome(veto=F.FakeLLM.veto, rationale="test", summary="test", applied=True, source=source)
+
+    monkeypatch.setattr(orch, "_simulate", slightly_lower_raw_net)
+    monkeypatch.setattr(orch.llm, "review_plan", proposal)
+    run_coro(orch._stage_review(env, "decide", time.monotonic() + 10))
+    assert len(orch.campaigns) == 1 and orch.campaigns[0]["filter_arpu_segment"] == "MID"
+    assert orch.plan is not original_plan and len(orch.plan.options) == 1
+    info = orch.extra["review"]
+    assert info["applied"] and orch.review.applied and info["decision"] == "accepted"
+    assert info["candidate_net"] > info["baseline_net"]
+    assert info["source"] == source
+
+
+@pytest.mark.parametrize("failure", ["loss", "nan", "infinity", "capped", "over_budget", "over_contacts",
+                                     "dropped", "simulation_error", "repack_error"])
+def test_rejected_veto_preserves_campaigns_and_plan(tmp_path, monkeypatch, failure):
+    orch, env = _review_fixture(tmp_path)
+    original_campaigns, original_plan = orch.campaigns, orch.plan
+    simulate = orch._simulate
+
+    def candidate_result(camps, budget, contacts):
+        r = simulate(camps, budget, contacts)
+        if len(camps) != 1:
+            return r
+        if failure == "simulation_error":
+            raise RuntimeError("simulation unavailable")
+        r = replace(r, net=300000.0)
+        if failure == "loss":
+            return replace(r, net=-1.0)
+        if failure == "nan":
+            return replace(r, net=float("nan"))
+        if failure == "infinity":
+            return replace(r, cost=float("inf"))
+        if failure == "capped":
+            return replace(r, within_limits=False)
+        if failure == "over_budget":
+            return replace(r, cost=budget + 1)
+        if failure == "over_contacts":
+            return replace(r, contacts=contacts + 1)
+        if failure == "dropped":
+            return replace(r, per_campaign=[dict(r.per_campaign[0], dropped=True)])
+        return r
+
+    async def proposal(*args):
+        from agent_src.contract import ReviewOutcome
+
+        return ReviewOutcome(veto=F.FakeLLM.veto, rationale="test", summary="test", applied=True, source="cache")
+
+    monkeypatch.setattr(orch, "_simulate", candidate_result)
+    monkeypatch.setattr(orch.llm, "review_plan", proposal)
+    if failure == "repack_error":
+        monkeypatch.setattr(orch.packer, "pack", _raiser)
+    run_coro(orch._stage_review(env, "decide", time.monotonic() + 10))
+    assert orch.campaigns is original_campaigns and orch.plan is original_plan
+    assert not orch.extra["review"]["applied"] and not orch.review.applied
+    assert orch.extra["review"]["decision"] != "accepted"
+    assert [e for e in orch.log.events if e["kind"] == "review"][-1]["applied"] is False
+
+
+def test_veto_checks_repacked_candidate_not_only_what_if(tmp_path, monkeypatch):
+    orch, env = _review_fixture(tmp_path)
+    original_campaigns, original_plan = orch.campaigns, orch.plan
+    simulate = orch._simulate
+
+    def repacked_loss(camps, budget, contacts):
+        r = simulate(camps, budget, contacts)
+        if len(camps) == 1:
+            # What-if keeps c02; repacking renames it c01 and is the actual candidate to validate.
+            return replace(r, net=300000.0 if camps[0]["campaign_name"].startswith("c02") else -1.0)
+        return r
+
+    monkeypatch.setattr(orch, "_simulate", repacked_loss)
+    run_coro(orch._stage_review(env, "decide", time.monotonic() + 10))
+    assert orch.llm.what_if_result["net"] > 200000
+    assert orch.extra["review"]["decision"] == "lower_expected_net"
+    assert orch.campaigns is original_campaigns and orch.plan is original_plan
 
 
 def test_veto_ignored_in_advise_mode(tmp_path):

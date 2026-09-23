@@ -1,4 +1,4 @@
-"""Shared contract: types, config and helpers used by every agent module.
+"""Общий контракт: типы, конфигурация и вспомогательные функции, используемые всеми модулями агента.
 
 Общий контракт: типы, конфигурация и вспомогательные функции агента.
 """
@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 # ---------------------------------------------------------------------------
-# Keys and constants
+# Ключи и константы
 # ---------------------------------------------------------------------------
 
 CellKey = tuple[str, str]  # (current_tariff, arpu_segment)
@@ -41,13 +41,13 @@ LLM_MODES: tuple[str, ...] = ("off", "advise", "decide")
 
 
 # ---------------------------------------------------------------------------
-# Config
+# Конфигурация
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
 class Config:
-    """Immutable run configuration (limits, risk knobs, LLM settings)."""
+    """Неизменяемая конфигурация запуска (лимиты, параметры риска, настройки LLM)."""
 
     time_budget_s: float = 420.0
     llm_budget_s: float = 90.0
@@ -80,9 +80,9 @@ class Config:
 
     @classmethod
     def from_env(cls, **overrides: Any) -> "Config":
-        """Build config applying env overrides (OPENAI_MODEL) and explicit kwargs.
+        """Собирает конфигурацию с учётом переопределений из env (OPENAI_MODEL) и явных kwargs.
 
-        AGENT_LLM_MODE is not stored here; it is resolved by resolve_llm_mode().
+        AGENT_LLM_MODE здесь не хранится; он определяется в resolve_llm_mode().
         """
         kw: dict[str, Any] = {}
         model = os.getenv("OPENAI_MODEL")
@@ -92,15 +92,15 @@ class Config:
         return cls(**kw)
 
     def replace(self, **changes: Any) -> "Config":
-        """Return a copy with some fields changed."""
+        """Возвращает копию с изменёнными полями."""
         return dataclasses.replace(self, **changes)
 
 
 def resolve_llm_mode() -> str:
-    """Return 'off'|'advise'|'decide' from AGENT_LLM_MODE.
+    """Возвращает 'off'|'advise'|'decide' по AGENT_LLM_MODE.
 
-    Unset/invalid value -> 'off', independent of the machine's credentials.
-    An explicit 'advise'/'decide' without a key degrades to 'off'.
+    Не задано/некорректно -> 'off', независимо от учётных данных машины.
+    Явный 'advise'/'decide' без ключа понижается до 'off'.
     """
     has_key = bool(os.getenv("OPENAI_API_KEY", "").strip())
     raw = os.getenv("AGENT_LLM_MODE", "").strip().lower()
@@ -112,25 +112,25 @@ def resolve_llm_mode() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Data classes
+# Классы данных
 # ---------------------------------------------------------------------------
 
 
 @dataclass
 class SubCell:
-    """Targeting unit: cell x data_segment x call_segment."""
+    """Единица таргетинга: cell x data_segment x call_segment."""
 
     key: SubKey
     n: int
     sum_p: float
     mean_p: float
-    ids: np.ndarray  # sorted ID_NUMBER
-    p: np.ndarray  # predicted_arpu aligned to ids
+    ids: np.ndarray  # отсортированные ID_NUMBER
+    p: np.ndarray  # predicted_arpu, выровненные по ids
 
 
 @dataclass
 class Cell:
-    """Effect unit: (current_tariff, arpu_segment)."""
+    """Единица эффекта: (current_tariff, arpu_segment)."""
 
     key: CellKey
     n: int
@@ -141,23 +141,23 @@ class Cell:
 
 @dataclass
 class Prior:
-    """Prior on base lift ratio at channel multiplier 1.0 (= change * share)."""
+    """Априорное распределение базового lift ratio при множителе канала 1.0 (= change * share)."""
 
     mu: float
     sd: float
-    share: float  # conversion estimate
+    share: float  # оценка конверсии
     n_hist: int
-    source: str  # e.g. 'arm' | 'cell' | 'global' | 'price' | 'none'
+    source: str  # например, 'arm' | 'cell' | 'global' | 'price' | 'none'
 
 
 @dataclass
 class Observation:
-    """One pilot result attributed to an arm."""
+    """Результат одного пилота, отнесённый к arm."""
 
     arm: ArmKey
     channel: str
     y: float  # observed_lift_ratio
-    n: int  # n_customers actually contacted
+    n: int  # n_customers, фактически получивших контакт
     cost: float
     sub: Optional[SubKey]
     pilot_index: int
@@ -165,7 +165,7 @@ class Observation:
 
 @dataclass
 class Posterior:
-    """Posterior of lift ratio (fraction of predicted_arpu) for an arm AND channel."""
+    """Апостериорное распределение lift ratio (доля predicted_arpu) для arm И канала."""
 
     mean: float
     sd: float
@@ -173,7 +173,7 @@ class Posterior:
 
 @dataclass
 class Option:
-    """Candidate action for one sub-cell."""
+    """Кандидатное действие для одной sub-cell."""
 
     sub: SubKey
     target: str
@@ -188,7 +188,7 @@ class Option:
 
 @dataclass
 class Plan:
-    """Allocator output."""
+    """Результат аллокатора."""
 
     options: list[Option]
     lambda_money: float
@@ -200,7 +200,7 @@ class Plan:
 
 @dataclass
 class PilotSpec:
-    """Pilot to run. filters = env.run_pilot filter kwargs (None = no filter)."""
+    """Пилот для запуска. filters = kwargs фильтров env.run_pilot (None = без фильтра)."""
 
     arm: ArmKey
     channel: str
@@ -211,7 +211,7 @@ class PilotSpec:
     reason: str
 
     def run_kwargs(self) -> dict:
-        """Full kwargs for env.run_pilot."""
+        """Полный набор kwargs для env.run_pilot."""
         kw = {
             "target_tariff": self.arm[2],
             "channel": self.channel,
@@ -224,7 +224,7 @@ class PilotSpec:
 
 @dataclass
 class ExploreState:
-    """Snapshot of exploration resources."""
+    """Снимок ресурсов на исследование."""
 
     remaining_budget: float
     remaining_contacts: int
@@ -232,17 +232,17 @@ class ExploreState:
     explore_money_spent: float
     explore_reach_spent: int
     pilots_per_arm: dict = field(default_factory=dict)  # dict[ArmKey, int]
-    used_subs: dict = field(default_factory=dict)  # dict[SubKey, int] contacts used by pilots
-    deadline: float = math.inf  # time.monotonic() based
+    used_subs: dict = field(default_factory=dict)  # dict[SubKey, int] контакты, израсходованные пилотами
+    deadline: float = math.inf  # на основе time.monotonic()
 
     def time_left(self) -> float:
-        """Seconds until deadline (may be negative)."""
+        """Секунды до дедлайна (могут быть отрицательными)."""
         return self.deadline - time.monotonic()
 
 
 @dataclass
 class SimResult:
-    """Output of ScoreSimulator.simulate."""
+    """Результат ScoreSimulator.simulate."""
 
     gross: float
     cost: float
@@ -254,7 +254,7 @@ class SimResult:
 
 @dataclass
 class ReviewOutcome:
-    """Result of the LLM risk review."""
+    """Результат LLM-проверки рисков."""
 
     veto: list[str]
     rationale: str
@@ -265,7 +265,7 @@ class ReviewOutcome:
 
 @dataclass
 class RunLog:
-    """Structured in-memory run log (no prints)."""
+    """Структурированный журнал запуска в памяти (без print)."""
 
     events: list[dict] = field(default_factory=list)
     pilots: list[dict] = field(default_factory=list)
@@ -273,26 +273,26 @@ class RunLog:
     t0: float = field(default_factory=time.monotonic)
 
     def log(self, kind: str, **fields: Any) -> dict:
-        """Append an event {'kind': kind, 't': elapsed_s, **fields}; returns it."""
+        """Добавляет событие {'kind': kind, 't': elapsed_s, **fields} и возвращает его."""
         ev = {"kind": kind, "t": round(time.monotonic() - self.t0, 3), **fields}
         self.events.append(ev)
         return ev
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Вспомогательные функции
 # ---------------------------------------------------------------------------
 
 
 def norm_cdf(x: float) -> float:
-    """Standard normal CDF via math.erf (handles +-inf)."""
+    """CDF стандартного нормального распределения через math.erf (обрабатывает +-inf)."""
     if x != x:  # NaN
         return 0.5
     return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
 
 
 def campaign_dict(**kw: Any) -> dict:
-    """Campaign dict with all CAMPAIGN_KEYS (missing = None); unknown keys are rejected."""
+    """Словарь кампании со всеми CAMPAIGN_KEYS (отсутствующие = None); неизвестные ключи отклоняются."""
     unknown = set(kw) - set(CAMPAIGN_KEYS)
     if unknown:
         raise KeyError(f"unknown campaign keys: {sorted(unknown)}")
@@ -300,7 +300,7 @@ def campaign_dict(**kw: Any) -> dict:
 
 
 def _canon(obj: Any) -> Any:
-    """Convert to JSON-safe canonical structure (floats rounded to 4 decimals)."""
+    """Преобразует в JSON-безопасную каноническую структуру (float округляются до 4 знаков)."""
     if obj is None or isinstance(obj, (bool, str)):
         return obj
     if isinstance(obj, (np.bool_,)):
@@ -328,22 +328,22 @@ def _canon(obj: Any) -> Any:
 
 
 def canonical_json(obj: Any) -> str:
-    """Deterministic JSON: sorted keys, compact, floats rounded to 4, tuples->lists, tuple keys joined by '|'."""
+    """Детерминированный JSON: ключи отсортированы, компактно, float округлены до 4 знаков, tuple->list, ключи-tuple склеены через '|'."""
     return json.dumps(_canon(obj), sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
 
 def sha256_text(s: str) -> str:
-    """Hex sha256 of a UTF-8 string."""
+    """Hex sha256 от строки UTF-8."""
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
 def arm_id(arm: ArmKey) -> str:
-    """Stable string id for an arm: 'from|seg|to'."""
+    """Стабильный строковый id для arm: 'from|seg|to'."""
     return "|".join(arm)
 
 
 def parse_arm_id(s: str) -> ArmKey:
-    """Inverse of arm_id; raises ValueError on bad input."""
+    """Обратная к arm_id; при некорректном вводе бросает ValueError."""
     parts = s.split("|")
     if len(parts) != 3:
         raise ValueError(f"bad arm id {s!r}")

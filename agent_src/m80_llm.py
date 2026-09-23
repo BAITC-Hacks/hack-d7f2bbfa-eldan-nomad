@@ -14,13 +14,13 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
 # ---------------------------------------------------------------------------
-# Constants and plain validation rules (shared by output_validator and cache path)
+# Константы и простые правила валидации (общие для output_validator и пути через кэш)
 # ---------------------------------------------------------------------------
 
 _LLM_PLAUS_WEIGHT: dict[str, float] = {"low": 0.8, "mid": 1.0, "high": 1.2}
-_LLM_VETO_P_MAX = 0.9  # only campaigns with P(net>0) below this may be vetoed
+_LLM_VETO_P_MAX = 0.9  # вето возможно только для кампаний с P(net>0) ниже этого порога
 _LLM_REQUEST_LIMIT = 4
-_LLM_TOOL_CALLS_LIMIT = 64  # local read-only tools; models batch one call per arm in a single request
+_LLM_TOOL_CALLS_LIMIT = 64  # локальные read-only инструменты; модели группируют по одному вызову на arm в одном запросе
 _LLM_OUTPUT_RETRIES = 1
 _LLM_REASON_MAX = 200
 
@@ -45,14 +45,14 @@ _LLM_REVIEWER_INSTRUCTIONS = (
 
 
 def _llm_item_get(item: Any, key: str, default: Any = None) -> Any:
-    """Read a field from a pydantic model or a dict."""
+    """Читает поле из pydantic-модели или dict."""
     if isinstance(item, dict):
         return item.get(key, default)
     return getattr(item, key, default)
 
 
 def _llm_validate_assessment(items: list, batch_ids: list[str]) -> list[str]:
-    """Plain rules for HypothesisAssessment.items; returns error messages (empty = valid)."""
+    """Простые правила для HypothesisAssessment.items; возвращает сообщения об ошибках (пусто = валидно)."""
     errors: list[str] = []
     allowed = set(batch_ids)
     seen: set[str] = set()
@@ -83,7 +83,7 @@ def _llm_validate_assessment(items: list, batch_ids: list[str]) -> list[str]:
 
 
 def _llm_validate_review(veto: list, campaign_names: list[str], p_pos: dict[str, float]) -> list[str]:
-    """Plain rules for PlanReview.veto; returns error messages (empty = valid)."""
+    """Простые правила для PlanReview.veto; возвращает сообщения об ошибках (пусто = валидно)."""
     errors: list[str] = []
     names = set(campaign_names)
     if not isinstance(veto, list):
@@ -101,13 +101,13 @@ def _llm_validate_review(veto: list, campaign_names: list[str], p_pos: dict[str,
 
 
 def _llm_evidence_name(ev: dict) -> Optional[str]:
-    """Campaign name of an evidence row ('name' or 'campaign_name')."""
+    """Имя кампании из строки evidence ('name' или 'campaign_name')."""
     n = ev.get("name", ev.get("campaign_name"))
     return None if n is None else str(n)
 
 
 def _llm_evidence_ppos(ev: dict) -> float:
-    """p_pos of an evidence row; missing/invalid -> 1.0 (not vetoable)."""
+    """p_pos строки evidence; отсутствует/некорректно -> 1.0 (вето невозможно)."""
     try:
         v = float(ev.get("p_pos", 1.0))
     except (TypeError, ValueError):
@@ -116,23 +116,23 @@ def _llm_evidence_ppos(ev: dict) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Deps (read-only snapshots for tools)
+# Deps (read-only снимки данных для инструментов)
 # ---------------------------------------------------------------------------
 
 
 @dataclass
 class AnalystDeps:
-    """Read-only snapshot for HypothesisAnalyst tools."""
+    """Read-only снимок для инструментов HypothesisAnalyst."""
 
     batch_ids: list[str]
-    items: dict[str, dict]  # arm_id -> item
+    items: dict[str, dict]  # arm_id -> элемент
     tariffs: dict[str, dict]
-    cells: dict[str, dict] = field(default_factory=dict)  # "from|seg" -> aggregates
+    cells: dict[str, dict] = field(default_factory=dict)  # "from|seg" -> агрегаты
 
 
 @dataclass
 class ReviewDeps:
-    """Read-only snapshot for RiskReviewer tools."""
+    """Read-only снимок для инструментов RiskReviewer."""
 
     campaign_names: list[str]
     campaigns: dict[str, dict]
@@ -142,7 +142,7 @@ class ReviewDeps:
 
 
 def _llm_cells_from_items(items: list[dict]) -> dict[str, dict]:
-    """Aggregate batch items per cell 'from|seg'."""
+    """Агрегирует элементы батча по ячейкам 'from|seg'."""
     cells: dict[str, dict] = {}
     for it in items:
         try:
@@ -161,7 +161,7 @@ def _llm_cells_from_items(items: list[dict]) -> dict[str, dict]:
 
 
 def _llm_tariff_price(t: dict) -> Optional[float]:
-    """Monthly price from a tariff row, if present."""
+    """Месячная цена из строки тарифа, если есть."""
     for k in ("price_tariff", "price", "monthly_fee"):
         if k in t:
             try:
@@ -172,24 +172,24 @@ def _llm_tariff_price(t: dict) -> Optional[float]:
 
 
 # ---------------------------------------------------------------------------
-# Lazy Pydantic AI kit
+# Ленивый набор Pydantic AI
 # ---------------------------------------------------------------------------
 
 
 def _llm_annotate(fn: Callable, ann: dict) -> Callable:
-    """Attach real (non-string) annotations so pydantic-ai can resolve them lazily."""
+    """Проставляет реальные (не строковые) аннотации, чтобы pydantic-ai мог лениво их разрешить."""
     fn.__annotations__ = dict(ann)
     return fn
 
 
 def _llm_build_kit() -> dict:
-    """Import pydantic / pydantic_ai and build output models + agent factories. Raises ImportError."""
+    """Импортирует pydantic / pydantic_ai и строит модели вывода + фабрики агентов. Бросает ImportError."""
     from typing import Literal
 
-    os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")  # no console output from the library
+    os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")  # без вывода библиотеки в консоль
     from pydantic import BaseModel, Field
     from pydantic_ai import Agent, ModelRetry, RunContext
-    from pydantic_ai.exceptions import (  # noqa: F401  (documented failure types)
+    from pydantic_ai.exceptions import (  # noqa: F401  (документированные типы ошибок)
         AgentRunError,
         ModelHTTPError,
         UnexpectedModelBehavior,
@@ -280,7 +280,7 @@ def _llm_build_kit() -> dict:
             try:
                 names = [c for c in campaign_ids if c in ctx.deps.campaigns]
                 return json.loads(canonical_json({"without": names, **dict(ctx.deps.what_if(names))}))
-            except Exception as exc:  # what-if must never crash the run
+            except Exception as exc:  # what-if никогда не должен ронять запуск
                 return {"error": type(exc).__name__}
 
         agent.tool(_llm_annotate(get_campaign_evidence, {"ctx": RCtx, "campaign_id": str, "return": dict}))
@@ -310,10 +310,10 @@ def _llm_build_kit() -> dict:
 
 
 class LLMLayer:
-    """Optional LLM advisors. Modes: off | advise (log only) | decide (apply). Never raises on LLM failure."""
+    """Опциональные LLM-советники. Режимы: off | advise (только лог) | decide (применять). Никогда не бросает исключений при сбое LLM."""
 
     def __init__(self, cfg: Config, mode: str, cache_path: str, log: RunLog, model: Any = None):
-        """`model` (optional extension): a pydantic-ai Model instance to use instead of OpenAI (tests)."""
+        """`model` (опциональное расширение): экземпляр pydantic-ai Model вместо OpenAI (для тестов)."""
         self.cfg = cfg
         self.mode = mode if mode in LLM_MODES else "off"
         self.cache_path = cache_path
@@ -323,15 +323,15 @@ class LLMLayer:
         self._kit_failed = False
         self._model: Any = None
         self._cache: Optional[dict] = None
-        self._spent = 0.0  # seconds of LLM wall time consumed
+        self._spent = 0.0  # потрачено секунд wall time на LLM
 
-    # ---- infrastructure -------------------------------------------------
+    # ---- инфраструктура -------------------------------------------------
 
     def _remaining(self) -> float:
         return float(self.cfg.llm_budget_s) - self._spent
 
     def _get_kit(self) -> Optional[dict]:
-        """Lazily build the pydantic-ai kit; ImportError (or any build failure) -> None (off behaviour)."""
+        """Лениво строит набор pydantic-ai; ImportError (или любой сбой сборки) -> None (поведение как off)."""
         if self._kit is None and not self._kit_failed:
             try:
                 self._kit = _llm_build_kit()
@@ -344,7 +344,7 @@ class LLMLayer:
         return self._kit
 
     def _get_model(self) -> Any:
-        """OpenAI Responses model (key from env only) or the injected test model."""
+        """Модель OpenAI Responses (ключ только из env) или внедрённая тестовая модель."""
         if self._model_override is not None:
             return self._model_override
         if self._model is None:
@@ -386,7 +386,7 @@ class LLMLayer:
         return sha256_text(f"{self.cfg.schema_version}{agent_name}{self.cfg.llm_model}{canonical_json(payload)}")
 
     def _record(self, sink: Optional[list] = None, **fields: Any) -> None:
-        """Append an LLM record to the run log, or to `sink` (flushed later in deterministic order)."""
+        """Добавляет LLM-запись в лог запуска или в `sink` (сбрасывается позже в детерминированном порядке)."""
         rec = json.loads(canonical_json(fields))
         if sink is not None:
             sink.append(rec)
@@ -396,7 +396,7 @@ class LLMLayer:
                                                                       "latency_s", "mode")})
 
     async def _run_agent(self, agent: Any, prompt: str, deps: Any) -> tuple[Any, Optional[str], float]:
-        """Run one agent call with per-call timeout; returns (output|None, error|None, latency)."""
+        """Выполняет один вызов агента с таймаутом на вызов; возвращает (output|None, error|None, latency)."""
         t0 = time.monotonic()
         timeout = min(float(self.cfg.llm_call_timeout_s), self._remaining())
         if timeout <= 0:
@@ -414,7 +414,7 @@ class LLMLayer:
     # ---- HypothesisAnalyst ------------------------------------------------
 
     async def assess_hypotheses(self, batches: dict[str, list[dict]], tariffs: dict[str, dict]) -> dict[ArmKey, float]:
-        """Plausibility weights {0.8,1.0,1.2} per arm; neutral 1.0 on off/advise/error/timeout."""
+        """Веса правдоподобия {0.8,1.0,1.2} на arm; нейтральный 1.0 при off/advise/error/timeout."""
         neutral: dict[ArmKey, float] = {}
         for key in sorted(batches):
             for it in batches[key]:
@@ -431,7 +431,7 @@ class LLMLayer:
         sinks: dict[str, list] = {k: [] for k in keys}
         try:
             results = await asyncio.gather(*(self._assess_batch(k, batches[k], tariffs, sinks[k]) for k in keys))
-        finally:  # account time and flush records in sorted batch order even on outer cancellation
+        finally:  # учитываем время и сбрасываем записи в порядке батчей даже при внешней отмене
             self._spent += time.monotonic() - t0
             for k in keys:
                 for rec in sinks[k]:
@@ -454,7 +454,7 @@ class LLMLayer:
 
     async def _assess_batch(self, batch_key: str, items: list[dict], tariffs: dict[str, dict],
                             sink: Optional[list] = None) -> dict[str, str]:
-        """One batch -> {arm_id: plausibility}; {} on any failure. Records go to `sink` when given."""
+        """Один батч -> {arm_id: plausibility}; {} при любом сбое. Записи идут в `sink`, если он передан."""
         items_by_id: dict[str, dict] = {}
         for it in items:
             aid = str(it.get("arm_id"))
@@ -516,7 +516,7 @@ class LLMLayer:
 
     async def review_plan(self, campaigns: list[dict], evidence: list[dict],
                           what_if: Callable[[list[str]], dict]) -> ReviewOutcome:
-        """Optional veto of weak campaigns. applied=True only in decide mode with a valid non-empty veto."""
+        """Опциональное вето слабых кампаний. applied=True только в режиме decide с валидным непустым veto."""
         names = [str(c.get("campaign_name")) for c in campaigns if c.get("campaign_name") is not None]
         if self.mode == "off" or not names:
             self._record(agent="RiskReviewer", source="off", mode=self.mode, ok=False)

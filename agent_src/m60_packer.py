@@ -1,7 +1,7 @@
 from __future__ import annotations  # bundle:strip
 from agent_src.contract import *  # noqa: F401,F403  bundle:strip
 
-# m60 CampaignPacker: turn an allocator Plan into <= 10 disjoint, valid campaigns.
+# m60 CampaignPacker: превращает Plan аллокатора в <= 10 непересекающихся валидных кампаний.
 # Упаковка плана подячеек в ≤10 непересекающихся кампаний с пересимуляцией.
 
 import math
@@ -12,28 +12,28 @@ from typing import Any, Callable, Optional
 
 @dataclass
 class _PackCamp:
-    """Internal campaign: filters + estimated value (from plan options)."""
+    """Внутренняя кампания: фильтры + оценка ценности (из опций плана)."""
 
     target: str
     channel: str
     arpu: str
     data: Optional[str]
     call: Optional[str]
-    tariffs: tuple  # from-tariffs, natural order
+    tariffs: tuple  # исходные тарифы, естественный порядок
     est_net: float = 0.0
     est_n: int = 0
 
     def key(self) -> tuple:
-        """Deterministic sort / identity key."""
+        """Детерминированный ключ сортировки / идентичности."""
         return (self.target, self.channel, self.arpu, self.data or "", self.call or "", self.tariffs)
 
 
-_PACK_HARD_MAX_CAMPAIGNS = 10  # organizer MAX_CAMPAIGNS
-_PACK_HARD_MAX_PER_CAMPAIGN = 5000  # organizer MAX_CUSTOMERS_PER_CAMPAIGN
+_PACK_HARD_MAX_CAMPAIGNS = 10  # MAX_CAMPAIGNS организатора
+_PACK_HARD_MAX_PER_CAMPAIGN = 5000  # MAX_CUSTOMERS_PER_CAMPAIGN организатора
 
 
 def _pack_limit(v: Any, hard: int) -> int:
-    """Config limit clamped to [1, organizer hard cap]."""
+    """Лимит из конфига, ограниченный диапазоном [1, жёсткий лимит организатора]."""
     try:
         return max(1, min(int(v), hard))
     except (TypeError, ValueError):
@@ -41,18 +41,18 @@ def _pack_limit(v: Any, hard: int) -> int:
 
 
 def _pack_short(code: str) -> str:
-    """'tariff_12' -> 't12'; other codes unchanged."""
+    """'tariff_12' -> 't12'; прочие коды без изменений."""
     m = re.fullmatch(r"tariff_(\d+)", str(code))
     return f"t{m.group(1)}" if m else str(code)
 
 
 def _pack_nat_key(s: str) -> tuple:
-    """Natural sort key ('tariff_2' < 'tariff_10')."""
+    """Ключ естественной сортировки ('tariff_2' < 'tariff_10')."""
     return tuple(int(p) if p.isdigit() else p for p in re.split(r"(\d+)", str(s)))
 
 
 class CampaignPacker:
-    """Packs Plan options into campaigns (grouping, coarsening, splitting, re-simulation)."""
+    """Упаковывает опции Plan в кампании (группировка, огрубление, разбиение, пересимуляция)."""
 
     def __init__(self, cfg: Config, dv: Any, sim: Any, log: Optional[RunLog] = None):
         self.cfg = cfg
@@ -66,14 +66,14 @@ class CampaignPacker:
         self._size_cache: dict[tuple, int] = {}
         codes = list(getattr(dv, "tariff_codes", []) or [])
         self._order = {c: i for i, c in enumerate(codes)}
-        # coarse prefix index: (tariff, arpu) and (tariff, arpu, data) -> dv sub keys
+        # грубый префиксный индекс: (tariff, arpu) и (tariff, arpu, data) -> ключи подячеек dv
         self._subs_by_ta: dict[tuple, list] = {}
         self._subs_by_tad: dict[tuple, list] = {}
         for sk in sorted(getattr(dv, "subs", {}) or {}):
             self._subs_by_ta.setdefault(sk[:2], []).append(sk)
             self._subs_by_tad.setdefault(sk[:3], []).append(sk)
 
-    # ------------------------------------------------------------------ helpers
+    # ------------------------------------------------------------------ вспомогательные
 
     def _tkey(self, code: str) -> tuple:
         return (0, self._order[code], "") if code in self._order else (1, 0, _pack_nat_key(code))
@@ -100,12 +100,12 @@ class CampaignPacker:
                 f"{c.call or 'ALL'}_{'+'.join(shorts)}")
 
     def _size(self, c: _PackCamp) -> int:
-        """Exact segment size (before caps) via the simulator (cached; independent of target/channel)."""
+        """Точный размер сегмента (до лимитов) через симулятор (кэшируется; не зависит от target/channel)."""
         k = (c.arpu, c.data, c.call, c.tariffs)
         if k not in self._size_cache:
             try:
                 v = int(len(self.sim.segment(self._to_dict(c))))
-            except Exception:  # noqa: BLE001 - fall back to dv sub counts
+            except Exception:  # noqa: BLE001 - откат к счётчикам подячеек dv
                 subs = getattr(self.dv, "subs", {}) or {}
                 v = int(sum(s.n for sk, s in subs.items() if self._covers(c, sk)))
             self._size_cache[k] = v
@@ -117,7 +117,7 @@ class CampaignPacker:
                 and (c.call is None or sk[3] == c.call))
 
     def _estimate(self, c: _PackCamp, assign: dict) -> _PackCamp:
-        """Recompute est_net / est_n from assigned options covered by c."""
+        """Пересчитать est_net / est_n по назначенным опциям, покрытым c."""
         net, n = 0.0, 0
         for sk, opt in assign.items():
             if opt.target == c.target and opt.channel == c.channel and self._covers(c, sk):
@@ -127,7 +127,7 @@ class CampaignPacker:
         c.est_net, c.est_n = net, n
         return c
 
-    # ------------------------------------------------------------------ steps
+    # ------------------------------------------------------------------ шаги
 
     def _group(self, assign: dict) -> list[_PackCamp]:
         groups: dict[tuple, list[str]] = {}
@@ -141,7 +141,7 @@ class CampaignPacker:
         return out
 
     def _split(self, c: _PackCamp, assign: dict) -> list[_PackCamp]:
-        """Split a campaign whose segment exceeds max_per_campaign (tariffs first, then segments)."""
+        """Разбить кампанию, сегмент которой превышает max_per_campaign (сначала по тарифам, затем по сегментам)."""
         limit = self._max_per
         size = self._size(c)
         if size <= limit:
@@ -164,7 +164,7 @@ class CampaignPacker:
                 out.extend(self._split(self._estimate(part, assign), assign))
             return out
         if c.data is None or c.call is None:
-            # refine the coarsest unset segment; parts without assigned subs are skipped
+            # уточняем самый грубый незаданный сегмент; части без назначенных подячеек пропускаются
             out = []
             if c.data is None:
                 parts = [(d, None) for d in DATA_SEGMENTS]
@@ -175,16 +175,16 @@ class CampaignPacker:
                 if part.est_n > 0:
                     out.extend(self._split(part, assign))
             return out
-        return [c]  # single fully-filtered sub > limit: scoring caps it at 5000
+        return [c]  # одна полностью отфильтрованная подячейка > лимита: скоринг обрежет её до 5000
 
     def _merge_candidates(self, camps: list[_PackCamp], assign: dict) -> list[tuple]:
-        """All exact coarsening merges: (reduction, level_rank, key, new_camps)."""
+        """Все точные слияния-огрубления: (reduction, level_rank, key, new_camps)."""
         cands = []
         pairs = sorted({(c.target, c.channel, c.arpu) for c in camps})
         for tg, ch, a in pairs:
             same = [c for c in camps if (c.target, c.channel, c.arpu) == (tg, ch, a)]
             for level, data in [(0, d) for d in DATA_SEGMENTS] + [(1, None)]:
-                # level 0: drop call split (coarse filter data=d, call=None); level 1: drop data split too
+                # уровень 0: убираем разбиение по call (грубый фильтр data=d, call=None); уровень 1: убираем и разбиение по data
                 finer = [c for c in same if (c.data == data if data is not None else True)
                          and not (c.data == data and c.call is None)]
                 if not finer:
@@ -218,7 +218,7 @@ class CampaignPacker:
                 if reduction <= 0:
                     continue
                 size = self._size(coarse)
-                # exact only: rows with NaN data/call (in no sub) would leak in once the filter is dropped
+                # только точные: строки с NaN в data/call (вне подячеек) просочились бы после снятия фильтра
                 expected = (self._size(existing[0]) if existing else 0) + sum(
                     int(self.dv.subs[sk].n) for t in elig
                     for sk in (self._subs_by_tad.get((t, a, data), []) if data is not None
@@ -243,7 +243,7 @@ class CampaignPacker:
                 continue
             worst = min(camps, key=lambda c: (c.est_net, c.key()))
             camps = [c for c in camps if c is not worst]
-            # dropped subs leave the assignment so later merges cannot silently re-add them
+            # удалённые подячейки выходят из назначения, чтобы последующие слияния не вернули их незаметно
             for sk in [sk for sk, o in assign.items()
                        if o.target == worst.target and o.channel == worst.channel and self._covers(worst, sk)]:
                 del assign[sk]
@@ -258,7 +258,7 @@ class CampaignPacker:
             if k not in cache:
                 try:
                     v = float(model.posterior((cur, arpu, target), channel).mean)
-                except Exception:  # noqa: BLE001 - unknown arm -> no effect
+                except Exception:  # noqa: BLE001 - неизвестный arm -> нет эффекта
                     v = 0.0
                 cache[k] = v if math.isfinite(v) else 0.0
             return cache[k]
@@ -266,7 +266,7 @@ class CampaignPacker:
         return fn
 
     def _prune(self, dicts: list[dict], ratio_fn: Callable, budget: float, contacts: int) -> tuple[list[dict], list]:
-        """Drop campaigns with simulated marginal net <= 0 (worst first, re-simulating)."""
+        """Удалить кампании с симулированным предельным net <= 0 (сначала худшие, с пересимуляцией)."""
         dropped = []
         while dicts:
             full = self.sim.simulate(dicts, ratio_fn, budget, contacts)
@@ -285,10 +285,10 @@ class CampaignPacker:
             self.last_sim = None
         return dicts, dropped
 
-    # ------------------------------------------------------------------ public
+    # ------------------------------------------------------------------ публичное API
 
     def pack(self, plan: Plan, model: Any, budget: float, contacts: int) -> list[dict]:
-        """Plan -> ordered list of <= max_campaigns disjoint campaign dicts ([] if nothing pays off)."""
+        """Plan -> упорядоченный список из <= max_campaigns непересекающихся кампаний-словарей ([], если ничего не окупается)."""
         self.last_sim = None
         self._size_cache = {}
         budget = float(budget) if budget is not None and math.isfinite(float(budget)) else 0.0
@@ -301,7 +301,7 @@ class CampaignPacker:
         for opt in sorted(plan.options, key=lambda o: (tuple(o.sub), o.target, o.channel)):
             sk = tuple(opt.sub)
             if sk[0] == opt.target or sk in assign:
-                continue  # never target == from; at most one option per sub
+                continue  # никогда target == from; не более одной опции на подячейку
             assign[sk] = opt
         n_options = len(assign)
         camps = self._group(assign)
@@ -314,7 +314,7 @@ class CampaignPacker:
         dicts = [self._to_dict(c, self._name(c, i + 1)) for i, c in enumerate(camps)]
         ratio_fn = self._ratio_fn(model)
         dicts, dropped = self._prune(dicts, ratio_fn, budget, contacts) if dicts else ([], [])
-        # renumber after pruning so names stay contiguous
+        # перенумеровываем после отсечения, чтобы имена шли подряд
         for i, d in enumerate(dicts):
             d["campaign_name"] = "c%02d%s" % (i + 1, d["campaign_name"][3:])
         if self.last_sim is not None and len(self.last_sim.per_campaign) == len(dicts):
@@ -329,10 +329,10 @@ class CampaignPacker:
             self.log.log("pack", **self.last_report)
         return dicts
 
-    # ------------------------------------------------------------------ coarse packing (extension)
+    # ------------------------------------------------------------------ грубая упаковка (расширение)
 
     def _coarse_items(self, model: Any, z: float) -> dict[tuple, list[tuple]]:
-        """(target, channel, arpu) -> [(from_tariff, n, sum_p, ratio_adj)] over cells with a known effect."""
+        """(target, channel, arpu) -> [(from_tariff, n, sum_p, ratio_adj)] по ячейкам с известным эффектом."""
         cells = getattr(self.dv, "cells", {}) or {}
         chans = list(getattr(self.dv, "channels", []) or [])
         out: dict[tuple, list[tuple]] = {}
@@ -348,15 +348,15 @@ class CampaignPacker:
                     try:
                         post = model.posterior((ck[0], ck[1], tg), ch)
                         r = float(post.mean) - z * float(post.sd)
-                    except Exception:  # noqa: BLE001 - unknown arm: skip
+                    except Exception:  # noqa: BLE001 - неизвестный arm: пропуск
                         continue
                     if math.isfinite(r) and r > 0.0:
                         out.setdefault((tg, ch, ck[1]), []).append((ck[0], n, sp, r))
         return out
 
     def _coarse_greedy(self, items: dict, budget: float, contacts: int, lm: float, lr: float) -> tuple[float, list]:
-        """Greedy campaign selection at cell granularity for shadow prices (lm money, lr reach per contact)."""
-        best: dict[tuple, float] = {}  # (from, arpu) -> best ratio already covered
+        """Жадный отбор кампаний на уровне ячеек для теневых цен (lm — деньги, lr — охват на контакт)."""
+        best: dict[tuple, float] = {}  # (from, arpu) -> лучший уже покрытый ratio
         camps: list[tuple] = []  # (target, channel, arpu, tariffs, n, cost, gain)
         b_left, c_left = float(budget), int(contacts)
         value = 0.0
@@ -400,11 +400,11 @@ class CampaignPacker:
         return value, camps
 
     def pack_coarse(self, model: Any, budget: float, contacts: int, z: Optional[float] = None) -> list[dict]:
-        """Cell-level greedy packing: campaigns (target, channel, arpu, from-tariff list) with no data/call filter.
+        """Жадная упаковка на уровне ячеек: кампании (target, channel, arpu, список исходных тарифов) без фильтра data/call.
 
-        Effects depend on (from, arpu, target, channel), so cell-wide campaigns cover whole cells with the same
-        ratio. Ratios are risk-adjusted (mean − z·sd); a small grid of shadow prices is swept and the best
-        value kept, then campaigns with non-positive simulated marginal net (posterior means) are pruned.
+        Эффекты зависят от (from, arpu, target, channel), поэтому кампании на всю ячейку покрывают целые ячейки с одинаковым
+        ratio. Ratio скорректированы на риск (mean − z·sd); перебирается небольшая сетка теневых цен и сохраняется лучшее
+        значение, затем отсекаются кампании с неположительным симулированным предельным net (апостериорные средние).
         """
         self.last_sim = None
         self._size_cache = {}
@@ -444,7 +444,7 @@ class CampaignPacker:
         return dicts
 
     def empty_campaign(self) -> dict:
-        """Valid push campaign whose filters match 0 customers (no-op fallback)."""
+        """Валидная push-кампания, фильтры которой совпадают с 0 клиентов (пустой запасной вариант)."""
         codes = list(getattr(self.dv, "tariff_codes", []) or [])
         chans = list(getattr(self.dv, "channels", []) or [])
         channel = "push" if "push" in chans or not chans else chans[0]
@@ -461,7 +461,7 @@ class CampaignPacker:
                                 campaign_name="c01_empty_noop", filter_arpu_segment=a, filter_data_segment=d,
                                 filter_call_segment=cl, filter_current_tariff=t, target_tariff=others[0],
                                 channel=channel)
-        # every combo populated (or < 2 tariffs): smallest sub on push, target != from when possible
+        # все комбинации заняты (или < 2 тарифов): наименьшая подячейка на push, target != from по возможности
         if subs and len(codes) >= 2:
             sk = min(subs, key=lambda k: (subs[k].n, k))
             target = next(c for c in codes if c != sk[0])

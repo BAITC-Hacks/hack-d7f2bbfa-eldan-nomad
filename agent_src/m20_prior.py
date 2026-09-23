@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 # ---------------------------------------------------------------------------
-# PriorBuilder: weak, hierarchical prior on the base lift ratio of every arm.
+# PriorBuilder: слабый иерархический априор на базовый lift ratio каждого arm.
 # Априор: иерархическая усадка arm -> (from, seg) -> global, Beta-неопределённость доли.
 # ---------------------------------------------------------------------------
 
@@ -16,19 +16,19 @@ _PR_ARPU_LABELS = ("LOW", "MID", "HIGH")
 _PR_MIN_PREV = 100.0
 _PR_CHG_LO, _PR_CHG_HI = -1.0, 3.0
 _PR_NOHIST_SD = 0.25
-_PR_PRICE_SHIFT = 0.02  # small price-sign shift of the base ratio / change when arm history is absent
+_PR_PRICE_SHIFT = 0.02  # небольшой сдвиг базового ratio / change по знаку цены, когда истории arm нет
 _PR_REQUIRED = ("AVG_ARPU_PREV_3M", "AVG_ARPU_NEXT_3M", "tariff_plan_code_from", "tariff_plan_code_to")
 
 
 def _pr_sign(x: float) -> float:
-    """Sign of a finite float (0 for NaN / 0)."""
+    """Знак конечного float (0 для NaN / 0)."""
     if x != x or x == 0:
         return 0.0
     return 1.0 if x > 0 else -1.0
 
 
 def _pr_num(x: Any, default: float, lo: float = -math.inf, hi: float = math.inf) -> float:
-    """Finite float clamped to [lo, hi]; ``default`` for non-numeric / non-finite input."""
+    """Конечный float, ограниченный [lo, hi]; ``default`` для нечислового / неконечного входа."""
     try:
         v = float(x)
     except Exception:
@@ -39,13 +39,13 @@ def _pr_num(x: Any, default: float, lo: float = -math.inf, hi: float = math.inf)
 
 
 def _pr_beta_mean_var(a: float, b: float) -> tuple[float, float]:
-    """Mean and variance of Beta(a, b)."""
+    """Среднее и дисперсия Beta(a, b)."""
     s = a + b
     return a / s, a * b / (s * s * (s + 1.0))
 
 
 def _pr_prepare(history: pd.DataFrame) -> pd.DataFrame:
-    """Clean history rows: segment, PREV filter, clipped relative change."""
+    """Очистка строк истории: сегмент, фильтр PREV, обрезанное относительное изменение."""
     df = history.loc[:, list(_PR_REQUIRED)].copy()
     prev = pd.to_numeric(df["AVG_ARPU_PREV_3M"], errors="coerce")
     nxt = pd.to_numeric(df["AVG_ARPU_NEXT_3M"], errors="coerce")
@@ -67,14 +67,14 @@ def _pr_prepare(history: pd.DataFrame) -> pd.DataFrame:
     out = out.loc[ok.fillna(False).astype(bool)]
     out = out.loc[np.isfinite(out["chg"].to_numpy(dtype=float))]
     out = out.astype({"frm": object, "to": object, "seg": object, "chg": float})
-    # canonical row order -> aggregates independent of input row order (bit-exact determinism)
+    # канонический порядок строк -> агрегаты не зависят от порядка входных строк (побитовый детерминизм)
     return out.sort_values(["frm", "seg", "to", "chg"], kind="mergesort").reset_index(drop=True)
 
 
 class PriorBuilder:
-    """Builds a Prior for every (cell x target != current) arm.
+    """Строит Prior для каждого arm (cell x target != current).
 
-    mu/sd are on the base lift ratio (change * share) at channel multiplier 1.0.
+    mu/sd заданы для базового lift ratio (change * share) при множителе канала 1.0.
     """
 
     def __init__(self, cfg: Config):
@@ -83,10 +83,10 @@ class PriorBuilder:
         self._tau = _pr_num(getattr(cfg, "tau", 0.2), 0.2, 0.0)
         self._k = _pr_num(getattr(cfg, "shrink_k", 20.0), 20.0, 0.0, 1e9)
 
-    # -- public ------------------------------------------------------------
+    # -- публичные ------------------------------------------------------------
 
     def build(self, history: pd.DataFrame | None, dv: Any) -> dict[ArmKey, Prior]:
-        """One Prior per cell in dv.cells x dv.targets_for(cell). Never raises."""
+        """Один Prior на каждую пару из dv.cells x dv.targets_for(cell). Никогда не бросает исключений."""
         try:
             arms = self._arms(dv)
         except Exception:
@@ -109,11 +109,11 @@ class PriorBuilder:
                 out[arm] = Prior(0.0, _PR_NOHIST_SD, self._share0, 0, "none")
         return out
 
-    # -- helpers -----------------------------------------------------------
+    # -- вспомогательные -----------------------------------------------------------
 
     @staticmethod
     def _arms(dv: Any) -> list[ArmKey]:
-        """All (from, seg, to) arms, sorted."""
+        """Все arm (from, seg, to), отсортированные."""
         arms: list[ArmKey] = []
         for cell in sorted(dv.cells):
             for tgt in dv.targets_for(cell):
@@ -123,7 +123,7 @@ class PriorBuilder:
 
     @staticmethod
     def _prices(dv: Any) -> dict[str, float]:
-        """Tariff prices (empty on failure)."""
+        """Цены тарифов (пусто при ошибке)."""
         try:
             return {str(k): float(v) for k, v in dict(dv.tariff_price).items()}
         except Exception:
@@ -131,14 +131,14 @@ class PriorBuilder:
 
     @staticmethod
     def _price_sign(arm: ArmKey, prices: dict[str, float]) -> float | None:
-        """sign(price_to - price_from), or None when a price is unknown."""
+        """sign(price_to - price_from) или None, если цена неизвестна."""
         pf, pt = prices.get(arm[0]), prices.get(arm[2])
         if pf is None or pt is None or not (math.isfinite(pf) and math.isfinite(pt)):
             return None
         return _pr_sign(pt - pf)
 
     def _no_history(self, arm: ArmKey, prices: dict[str, float]) -> Prior:
-        """Weak prior: mu = small price-sign shift, sd = 0.25."""
+        """Слабый априор: mu = небольшой сдвиг по знаку цены, sd = 0.25."""
         share = self._share0
         sgn = self._price_sign(arm, prices)
         if sgn is None:
@@ -146,7 +146,7 @@ class PriorBuilder:
         return Prior(_PR_PRICE_SHIFT * sgn, _PR_NOHIST_SD, share, 0, "price")
 
     def _stats(self, history: pd.DataFrame) -> dict | None:
-        """Aggregate arm / cell / global statistics; None if unusable."""
+        """Агрегирует статистики arm / cell / global; None, если непригодны."""
         if not isinstance(history, pd.DataFrame) or any(c not in history.columns for c in _PR_REQUIRED):
             return None
         df = _pr_prepare(history)
@@ -171,11 +171,11 @@ class PriorBuilder:
         return {"g_mean": g_mean, "g_var": g_var, "cells": cells, "arms": arms, "g_share": g_share}
 
     def _from_history(self, arm: ArmKey, st: dict, prices: dict[str, float]) -> Prior:
-        """Hierarchical shrinkage prior for one arm.
+        """Иерархический shrinkage-априор для одного arm.
 
-        Observed arm (c > 0): share ~ Beta(c+1, tot-c+1). Unobserved arm (c == 0): the scorer
-        falls back to a rule with the median arm conversion, so share = global median share
-        (weak, pseudo-count 2) and a price-sign shift is added in base-ratio units.
+        Наблюдаемый arm (c > 0): share ~ Beta(c+1, tot-c+1). Ненаблюдаемый arm (c == 0): скорер
+        переходит на правило с медианной конверсией arm, поэтому share = глобальная медианная share
+        (слабо, pseudo-count 2), и добавляется сдвиг по знаку цены в единицах base ratio.
         """
         k, tau = self._k, self._tau
         g_mean, g_var = st["g_mean"], st["g_var"]
@@ -195,7 +195,7 @@ class PriorBuilder:
             source = "arm"
         else:
             share = st["g_share"]
-            var_share = share * (1.0 - share) / 3.0  # weak: Beta with pseudo-count 2
+            var_share = share * (1.0 - share) / 3.0  # слабый: Beta с pseudo-count 2
             source = "cell" if tot > 0 else "global"
         share = min(max(float(share), 1e-6), 1.0)
 

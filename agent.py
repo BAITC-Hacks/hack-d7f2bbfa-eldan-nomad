@@ -15,7 +15,7 @@ from __future__ import annotations
 # ======================================================================
 # agent_src/contract.py
 # ======================================================================
-"""Shared contract: types, config and helpers used by every agent module.
+"""Общий контракт: типы, конфигурация и вспомогательные функции, используемые всеми модулями агента.
 
 Общий контракт: типы, конфигурация и вспомогательные функции агента.
 """
@@ -33,7 +33,7 @@ import numpy as np
 import pandas as pd
 
 # ---------------------------------------------------------------------------
-# Keys and constants
+# Ключи и константы
 # ---------------------------------------------------------------------------
 
 CellKey = tuple[str, str]  # (current_tariff, arpu_segment)
@@ -57,13 +57,13 @@ LLM_MODES: tuple[str, ...] = ("off", "advise", "decide")
 
 
 # ---------------------------------------------------------------------------
-# Config
+# Конфигурация
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
 class Config:
-    """Immutable run configuration (limits, risk knobs, LLM settings)."""
+    """Неизменяемая конфигурация запуска (лимиты, параметры риска, настройки LLM)."""
 
     time_budget_s: float = 420.0
     llm_budget_s: float = 90.0
@@ -96,9 +96,9 @@ class Config:
 
     @classmethod
     def from_env(cls, **overrides: Any) -> "Config":
-        """Build config applying env overrides (OPENAI_MODEL) and explicit kwargs.
+        """Собирает конфигурацию с учётом переопределений из env (OPENAI_MODEL) и явных kwargs.
 
-        AGENT_LLM_MODE is not stored here; it is resolved by resolve_llm_mode().
+        AGENT_LLM_MODE здесь не хранится; он определяется в resolve_llm_mode().
         """
         kw: dict[str, Any] = {}
         model = os.getenv("OPENAI_MODEL")
@@ -108,15 +108,15 @@ class Config:
         return cls(**kw)
 
     def replace(self, **changes: Any) -> "Config":
-        """Return a copy with some fields changed."""
+        """Возвращает копию с изменёнными полями."""
         return dataclasses.replace(self, **changes)
 
 
 def resolve_llm_mode() -> str:
-    """Return 'off'|'advise'|'decide' from AGENT_LLM_MODE.
+    """Возвращает 'off'|'advise'|'decide' по AGENT_LLM_MODE.
 
-    Unset/invalid value -> 'off', independent of the machine's credentials.
-    An explicit 'advise'/'decide' without a key degrades to 'off'.
+    Не задано/некорректно -> 'off', независимо от учётных данных машины.
+    Явный 'advise'/'decide' без ключа понижается до 'off'.
     """
     has_key = bool(os.getenv("OPENAI_API_KEY", "").strip())
     raw = os.getenv("AGENT_LLM_MODE", "").strip().lower()
@@ -128,25 +128,25 @@ def resolve_llm_mode() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Data classes
+# Классы данных
 # ---------------------------------------------------------------------------
 
 
 @dataclass
 class SubCell:
-    """Targeting unit: cell x data_segment x call_segment."""
+    """Единица таргетинга: cell x data_segment x call_segment."""
 
     key: SubKey
     n: int
     sum_p: float
     mean_p: float
-    ids: np.ndarray  # sorted ID_NUMBER
-    p: np.ndarray  # predicted_arpu aligned to ids
+    ids: np.ndarray  # отсортированные ID_NUMBER
+    p: np.ndarray  # predicted_arpu, выровненные по ids
 
 
 @dataclass
 class Cell:
-    """Effect unit: (current_tariff, arpu_segment)."""
+    """Единица эффекта: (current_tariff, arpu_segment)."""
 
     key: CellKey
     n: int
@@ -157,23 +157,23 @@ class Cell:
 
 @dataclass
 class Prior:
-    """Prior on base lift ratio at channel multiplier 1.0 (= change * share)."""
+    """Априорное распределение базового lift ratio при множителе канала 1.0 (= change * share)."""
 
     mu: float
     sd: float
-    share: float  # conversion estimate
+    share: float  # оценка конверсии
     n_hist: int
-    source: str  # e.g. 'arm' | 'cell' | 'global' | 'price' | 'none'
+    source: str  # например, 'arm' | 'cell' | 'global' | 'price' | 'none'
 
 
 @dataclass
 class Observation:
-    """One pilot result attributed to an arm."""
+    """Результат одного пилота, отнесённый к arm."""
 
     arm: ArmKey
     channel: str
     y: float  # observed_lift_ratio
-    n: int  # n_customers actually contacted
+    n: int  # n_customers, фактически получивших контакт
     cost: float
     sub: Optional[SubKey]
     pilot_index: int
@@ -181,7 +181,7 @@ class Observation:
 
 @dataclass
 class Posterior:
-    """Posterior of lift ratio (fraction of predicted_arpu) for an arm AND channel."""
+    """Апостериорное распределение lift ratio (доля predicted_arpu) для arm И канала."""
 
     mean: float
     sd: float
@@ -189,7 +189,7 @@ class Posterior:
 
 @dataclass
 class Option:
-    """Candidate action for one sub-cell."""
+    """Кандидатное действие для одной sub-cell."""
 
     sub: SubKey
     target: str
@@ -204,7 +204,7 @@ class Option:
 
 @dataclass
 class Plan:
-    """Allocator output."""
+    """Результат аллокатора."""
 
     options: list[Option]
     lambda_money: float
@@ -216,7 +216,7 @@ class Plan:
 
 @dataclass
 class PilotSpec:
-    """Pilot to run. filters = env.run_pilot filter kwargs (None = no filter)."""
+    """Пилот для запуска. filters = kwargs фильтров env.run_pilot (None = без фильтра)."""
 
     arm: ArmKey
     channel: str
@@ -227,7 +227,7 @@ class PilotSpec:
     reason: str
 
     def run_kwargs(self) -> dict:
-        """Full kwargs for env.run_pilot."""
+        """Полный набор kwargs для env.run_pilot."""
         kw = {
             "target_tariff": self.arm[2],
             "channel": self.channel,
@@ -240,7 +240,7 @@ class PilotSpec:
 
 @dataclass
 class ExploreState:
-    """Snapshot of exploration resources."""
+    """Снимок ресурсов на исследование."""
 
     remaining_budget: float
     remaining_contacts: int
@@ -248,17 +248,17 @@ class ExploreState:
     explore_money_spent: float
     explore_reach_spent: int
     pilots_per_arm: dict = field(default_factory=dict)  # dict[ArmKey, int]
-    used_subs: dict = field(default_factory=dict)  # dict[SubKey, int] contacts used by pilots
-    deadline: float = math.inf  # time.monotonic() based
+    used_subs: dict = field(default_factory=dict)  # dict[SubKey, int] контакты, израсходованные пилотами
+    deadline: float = math.inf  # на основе time.monotonic()
 
     def time_left(self) -> float:
-        """Seconds until deadline (may be negative)."""
+        """Секунды до дедлайна (могут быть отрицательными)."""
         return self.deadline - time.monotonic()
 
 
 @dataclass
 class SimResult:
-    """Output of ScoreSimulator.simulate."""
+    """Результат ScoreSimulator.simulate."""
 
     gross: float
     cost: float
@@ -270,7 +270,7 @@ class SimResult:
 
 @dataclass
 class ReviewOutcome:
-    """Result of the LLM risk review."""
+    """Результат LLM-проверки рисков."""
 
     veto: list[str]
     rationale: str
@@ -281,7 +281,7 @@ class ReviewOutcome:
 
 @dataclass
 class RunLog:
-    """Structured in-memory run log (no prints)."""
+    """Структурированный журнал запуска в памяти (без print)."""
 
     events: list[dict] = field(default_factory=list)
     pilots: list[dict] = field(default_factory=list)
@@ -289,26 +289,26 @@ class RunLog:
     t0: float = field(default_factory=time.monotonic)
 
     def log(self, kind: str, **fields: Any) -> dict:
-        """Append an event {'kind': kind, 't': elapsed_s, **fields}; returns it."""
+        """Добавляет событие {'kind': kind, 't': elapsed_s, **fields} и возвращает его."""
         ev = {"kind": kind, "t": round(time.monotonic() - self.t0, 3), **fields}
         self.events.append(ev)
         return ev
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Вспомогательные функции
 # ---------------------------------------------------------------------------
 
 
 def norm_cdf(x: float) -> float:
-    """Standard normal CDF via math.erf (handles +-inf)."""
+    """CDF стандартного нормального распределения через math.erf (обрабатывает +-inf)."""
     if x != x:  # NaN
         return 0.5
     return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
 
 
 def campaign_dict(**kw: Any) -> dict:
-    """Campaign dict with all CAMPAIGN_KEYS (missing = None); unknown keys are rejected."""
+    """Словарь кампании со всеми CAMPAIGN_KEYS (отсутствующие = None); неизвестные ключи отклоняются."""
     unknown = set(kw) - set(CAMPAIGN_KEYS)
     if unknown:
         raise KeyError(f"unknown campaign keys: {sorted(unknown)}")
@@ -316,7 +316,7 @@ def campaign_dict(**kw: Any) -> dict:
 
 
 def _canon(obj: Any) -> Any:
-    """Convert to JSON-safe canonical structure (floats rounded to 4 decimals)."""
+    """Преобразует в JSON-безопасную каноническую структуру (float округляются до 4 знаков)."""
     if obj is None or isinstance(obj, (bool, str)):
         return obj
     if isinstance(obj, (np.bool_,)):
@@ -344,22 +344,22 @@ def _canon(obj: Any) -> Any:
 
 
 def canonical_json(obj: Any) -> str:
-    """Deterministic JSON: sorted keys, compact, floats rounded to 4, tuples->lists, tuple keys joined by '|'."""
+    """Детерминированный JSON: ключи отсортированы, компактно, float округлены до 4 знаков, tuple->list, ключи-tuple склеены через '|'."""
     return json.dumps(_canon(obj), sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
 
 def sha256_text(s: str) -> str:
-    """Hex sha256 of a UTF-8 string."""
+    """Hex sha256 от строки UTF-8."""
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
 def arm_id(arm: ArmKey) -> str:
-    """Stable string id for an arm: 'from|seg|to'."""
+    """Стабильный строковый id для arm: 'from|seg|to'."""
     return "|".join(arm)
 
 
 def parse_arm_id(s: str) -> ArmKey:
-    """Inverse of arm_id; raises ValueError on bad input."""
+    """Обратная к arm_id; при некорректном вводе бросает ValueError."""
     parts = s.split("|")
     if len(parts) != 3:
         raise ValueError(f"bad arm id {s!r}")
@@ -368,7 +368,7 @@ def parse_arm_id(s: str) -> ArmKey:
 # ======================================================================
 # agent_src/m10_dataview.py
 # ======================================================================
-# m10 DataView: cells / sub-cells of the audience, tariff and channel tables.
+# m10 DataView: ячейки / подячейки аудитории, таблицы тарифов и каналов.
 # DataView: ячейки и подячейки аудитории, справочник тарифов и каналов.
 import os
 import re
@@ -382,13 +382,13 @@ _DV_HISTORY_COLS: tuple[str, ...] = ("AVG_ARPU_PREV_3M", "AVG_ARPU_NEXT_3M", "ta
 
 
 def _dv_natural_key(code: str) -> tuple:
-    """Natural sort key: 'tariff_2' < 'tariff_10'."""
+    """Ключ естественной сортировки: 'tariff_2' < 'tariff_10'."""
     parts = re.split(r"(\d+)", str(code))
     return tuple((0, int(p), "") if p.isdigit() else (1, 0, p) for p in parts)
 
 
 def _dv_py(v: Any) -> Any:
-    """Convert numpy / pandas scalars to plain Python values (NaN -> None)."""
+    """Преобразует скаляры numpy / pandas в обычные значения Python (NaN -> None)."""
     if v is None:
         return None
     if isinstance(v, np.generic):
@@ -404,22 +404,22 @@ def _dv_py(v: Any) -> Any:
 
 
 class DataView:
-    """Read-only aggregated view of env.customer_profile / env.tariffs / env.channels."""
+    """Агрегированное представление только для чтения над env.customer_profile / env.tariffs / env.channels."""
 
     def __init__(
         self, profile: pd.DataFrame, tariffs: pd.DataFrame, channels: dict, allow_extra_channels: bool = False
     ):
-        """allow_extra_channels=False keeps only CHANNELS_ORDER (the organizer scorer drops other channels)."""
+        """allow_extra_channels=False оставляет только CHANNELS_ORDER (скорер организаторов отбрасывает прочие каналы)."""
         self._channels_raw: dict = {str(k): dict(v) for k, v in dict(channels).items()}
         self._build_tariffs(tariffs)
         self._build_channels(allow_extra_channels)
         self._build_cells(profile)
 
-    # ------------------------------------------------------------------ tariffs / channels
+    # ------------------------------------------------------------------ тарифы / каналы
     def _build_tariffs(self, tariffs: pd.DataFrame) -> None:
         t = tariffs.copy()
         t = t[t["tariff_plan_code"].notna()]
-        # Keep raw codes (no strip): the organizer validates target_tariff against the raw values.
+        # Сохраняем исходные коды (без strip): организаторы проверяют target_tariff по исходным значениям.
         t["tariff_plan_code"] = t["tariff_plan_code"].astype(str)
         t = t[t["tariff_plan_code"].str.strip() != ""]
         t = t.drop_duplicates("tariff_plan_code", keep="first")
@@ -441,7 +441,7 @@ class DataView:
         extra = sorted(present - set(CHANNELS_ORDER)) if allow_extra else []
         self.channels: list[str] = ordered + extra
 
-    # ------------------------------------------------------------------ cells
+    # ------------------------------------------------------------------ ячейки
     def _build_cells(self, profile: pd.DataFrame) -> None:
         cols = list(_DV_SEG_COLS)
         df = pd.DataFrame(
@@ -451,19 +451,19 @@ class DataView:
             }
         )
         for c in cols:
-            # Plain object dtype with NaN for missing: robust across str/category/object dtypes.
+            # Обычный object dtype с NaN для пропусков: устойчиво для dtype str/category/object.
             s = profile[c]
             mask = s.isna()
             df[c] = s.astype(object).where(~mask, np.nan).map(lambda v: v if v != v else str(v))
         seg_na = df[cols].isna()
         self.n_nan: int = int(seg_na.any(axis=1).sum())
 
-        # Cells: rows with valid current_tariff + arpu_segment.
+        # Ячейки: строки с корректными current_tariff + arpu_segment.
         cell_df = df[~seg_na[cols[0]] & ~seg_na[cols[1]]]
         cagg = cell_df.groupby(cols[:2], sort=True, observed=True, dropna=True)["predicted_arpu"].agg(["size", "sum"])
 
-        # Sub-cells: rows with all four segments valid and a finite integral ID, sorted by keys then ID.
-        # Duplicate IDs keep the first row (organizer gross lift is deduplicated per ID_NUMBER).
+        # Подячейки: строки со всеми четырьмя корректными сегментами и конечным целым ID, сортировка по ключам, затем по ID.
+        # При дубликатах ID остаётся первая строка (gross lift организаторов дедуплицируется по ID_NUMBER).
         idv = df["ID_NUMBER"].to_numpy(dtype=float)
         id_ok = np.isfinite(idv) & (np.floor(idv) == idv) & (np.abs(idv) < 2.0**62)
         self.n_bad_id: int = int((~id_ok).sum())
@@ -480,7 +480,7 @@ class DataView:
             skey: SubKey = tuple(str(x) for x in key)  # type: ignore[assignment]
             ids = ids_all[idx]
             p = p_all[idx]
-            order = np.argsort(ids, kind="mergesort")  # already sorted; cheap safety
+            order = np.argsort(ids, kind="mergesort")  # уже отсортировано; дешёвая страховка
             ids, p = ids[order], p[order]
             n = int(ids.size)
             s = float(p.sum())
@@ -499,32 +499,32 @@ class DataView:
                 key=ckey, n=n, sum_p=s, mean_p=s / n if n else 0.0, subs=sorted(subs_by_cell.get(ckey, []))
             )
 
-    # ------------------------------------------------------------------ accessors
+    # ------------------------------------------------------------------ методы доступа
     def tariff_info(self, code: str) -> dict:
-        """All dict_tariff columns of the tariff row (KeyError if unknown)."""
+        """Все столбцы dict_tariff для строки тарифа (KeyError, если тариф неизвестен)."""
         return dict(self._tariff_rows[code])
 
     def cost(self, ch: str) -> float:
-        """Cost per contact of a channel."""
+        """Стоимость одного контакта в канале."""
         return float(self._channels_raw[ch]["cost_per_contact"])
 
     def mult(self, ch: str) -> float:
-        """Conversion multiplier of a channel."""
+        """Множитель конверсии канала."""
         return float(self._channels_raw[ch]["conversion_multiplier"])
 
     def cell_of(self, sub: SubKey) -> CellKey:
-        """Cell key of a sub-cell key."""
+        """Ключ ячейки для ключа подячейки."""
         return (sub[0], sub[1])
 
     def subs_of(self, cell: CellKey) -> list[SubCell]:
-        """Sub-cells of a cell, sorted by key."""
+        """Подячейки ячейки, отсортированные по ключу."""
         c = self.cells.get(cell)
         if c is None:
             return []
         return [self.subs[k] for k in c.subs]
 
     def targets_for(self, cell: CellKey) -> list[str]:
-        """Candidate target tariffs for a cell (all tariffs except the current one)."""
+        """Кандидаты в целевые тарифы для ячейки (все тарифы, кроме текущего)."""
         return [t for t in self.tariff_codes if t != cell[0]]
 
 
@@ -539,7 +539,7 @@ def _dv_candidates(search_dirs: list[str], names: tuple[str, ...]) -> list[str]:
 
 
 def load_history(search_dirs: list[str]) -> pd.DataFrame | None:
-    """Load change_tariff history from <dir>/data/ or <dir>/; None if unavailable. Never raises."""
+    """Загружает историю change_tariff из <dir>/data/ или <dir>/; None, если недоступна. Никогда не бросает исключений."""
     try:
         for path in _dv_candidates(search_dirs, (os.path.join("data", "change_tariff.csv"), "change_tariff.csv")):
             try:
@@ -555,7 +555,7 @@ def load_history(search_dirs: list[str]) -> pd.DataFrame | None:
 
 
 def load_tariff_descriptions(search_dirs: list[str]) -> dict[str, str]:
-    """Map tariff_plan_code -> description from tariff_dictionary.csv; {} on failure."""
+    """Отображение tariff_plan_code -> описание из tariff_dictionary.csv; {} при ошибке."""
     try:
         for path in _dv_candidates(search_dirs, ("tariff_dictionary.csv", os.path.join("data", "tariff_dictionary.csv"))):
             try:
@@ -586,7 +586,7 @@ import numpy as np
 import pandas as pd
 
 # ---------------------------------------------------------------------------
-# PriorBuilder: weak, hierarchical prior on the base lift ratio of every arm.
+# PriorBuilder: слабый иерархический априор на базовый lift ratio каждого arm.
 # Априор: иерархическая усадка arm -> (from, seg) -> global, Beta-неопределённость доли.
 # ---------------------------------------------------------------------------
 
@@ -595,19 +595,19 @@ _PR_ARPU_LABELS = ("LOW", "MID", "HIGH")
 _PR_MIN_PREV = 100.0
 _PR_CHG_LO, _PR_CHG_HI = -1.0, 3.0
 _PR_NOHIST_SD = 0.25
-_PR_PRICE_SHIFT = 0.02  # small price-sign shift of the base ratio / change when arm history is absent
+_PR_PRICE_SHIFT = 0.02  # небольшой сдвиг базового ratio / change по знаку цены, когда истории arm нет
 _PR_REQUIRED = ("AVG_ARPU_PREV_3M", "AVG_ARPU_NEXT_3M", "tariff_plan_code_from", "tariff_plan_code_to")
 
 
 def _pr_sign(x: float) -> float:
-    """Sign of a finite float (0 for NaN / 0)."""
+    """Знак конечного float (0 для NaN / 0)."""
     if x != x or x == 0:
         return 0.0
     return 1.0 if x > 0 else -1.0
 
 
 def _pr_num(x: Any, default: float, lo: float = -math.inf, hi: float = math.inf) -> float:
-    """Finite float clamped to [lo, hi]; ``default`` for non-numeric / non-finite input."""
+    """Конечный float, ограниченный [lo, hi]; ``default`` для нечислового / неконечного входа."""
     try:
         v = float(x)
     except Exception:
@@ -618,13 +618,13 @@ def _pr_num(x: Any, default: float, lo: float = -math.inf, hi: float = math.inf)
 
 
 def _pr_beta_mean_var(a: float, b: float) -> tuple[float, float]:
-    """Mean and variance of Beta(a, b)."""
+    """Среднее и дисперсия Beta(a, b)."""
     s = a + b
     return a / s, a * b / (s * s * (s + 1.0))
 
 
 def _pr_prepare(history: pd.DataFrame) -> pd.DataFrame:
-    """Clean history rows: segment, PREV filter, clipped relative change."""
+    """Очистка строк истории: сегмент, фильтр PREV, обрезанное относительное изменение."""
     df = history.loc[:, list(_PR_REQUIRED)].copy()
     prev = pd.to_numeric(df["AVG_ARPU_PREV_3M"], errors="coerce")
     nxt = pd.to_numeric(df["AVG_ARPU_NEXT_3M"], errors="coerce")
@@ -646,14 +646,14 @@ def _pr_prepare(history: pd.DataFrame) -> pd.DataFrame:
     out = out.loc[ok.fillna(False).astype(bool)]
     out = out.loc[np.isfinite(out["chg"].to_numpy(dtype=float))]
     out = out.astype({"frm": object, "to": object, "seg": object, "chg": float})
-    # canonical row order -> aggregates independent of input row order (bit-exact determinism)
+    # канонический порядок строк -> агрегаты не зависят от порядка входных строк (побитовый детерминизм)
     return out.sort_values(["frm", "seg", "to", "chg"], kind="mergesort").reset_index(drop=True)
 
 
 class PriorBuilder:
-    """Builds a Prior for every (cell x target != current) arm.
+    """Строит Prior для каждого arm (cell x target != current).
 
-    mu/sd are on the base lift ratio (change * share) at channel multiplier 1.0.
+    mu/sd заданы для базового lift ratio (change * share) при множителе канала 1.0.
     """
 
     def __init__(self, cfg: Config):
@@ -662,10 +662,10 @@ class PriorBuilder:
         self._tau = _pr_num(getattr(cfg, "tau", 0.2), 0.2, 0.0)
         self._k = _pr_num(getattr(cfg, "shrink_k", 20.0), 20.0, 0.0, 1e9)
 
-    # -- public ------------------------------------------------------------
+    # -- публичные ------------------------------------------------------------
 
     def build(self, history: pd.DataFrame | None, dv: Any) -> dict[ArmKey, Prior]:
-        """One Prior per cell in dv.cells x dv.targets_for(cell). Never raises."""
+        """Один Prior на каждую пару из dv.cells x dv.targets_for(cell). Никогда не бросает исключений."""
         try:
             arms = self._arms(dv)
         except Exception:
@@ -688,11 +688,11 @@ class PriorBuilder:
                 out[arm] = Prior(0.0, _PR_NOHIST_SD, self._share0, 0, "none")
         return out
 
-    # -- helpers -----------------------------------------------------------
+    # -- вспомогательные -----------------------------------------------------------
 
     @staticmethod
     def _arms(dv: Any) -> list[ArmKey]:
-        """All (from, seg, to) arms, sorted."""
+        """Все arm (from, seg, to), отсортированные."""
         arms: list[ArmKey] = []
         for cell in sorted(dv.cells):
             for tgt in dv.targets_for(cell):
@@ -702,7 +702,7 @@ class PriorBuilder:
 
     @staticmethod
     def _prices(dv: Any) -> dict[str, float]:
-        """Tariff prices (empty on failure)."""
+        """Цены тарифов (пусто при ошибке)."""
         try:
             return {str(k): float(v) for k, v in dict(dv.tariff_price).items()}
         except Exception:
@@ -710,14 +710,14 @@ class PriorBuilder:
 
     @staticmethod
     def _price_sign(arm: ArmKey, prices: dict[str, float]) -> float | None:
-        """sign(price_to - price_from), or None when a price is unknown."""
+        """sign(price_to - price_from) или None, если цена неизвестна."""
         pf, pt = prices.get(arm[0]), prices.get(arm[2])
         if pf is None or pt is None or not (math.isfinite(pf) and math.isfinite(pt)):
             return None
         return _pr_sign(pt - pf)
 
     def _no_history(self, arm: ArmKey, prices: dict[str, float]) -> Prior:
-        """Weak prior: mu = small price-sign shift, sd = 0.25."""
+        """Слабый априор: mu = небольшой сдвиг по знаку цены, sd = 0.25."""
         share = self._share0
         sgn = self._price_sign(arm, prices)
         if sgn is None:
@@ -725,7 +725,7 @@ class PriorBuilder:
         return Prior(_PR_PRICE_SHIFT * sgn, _PR_NOHIST_SD, share, 0, "price")
 
     def _stats(self, history: pd.DataFrame) -> dict | None:
-        """Aggregate arm / cell / global statistics; None if unusable."""
+        """Агрегирует статистики arm / cell / global; None, если непригодны."""
         if not isinstance(history, pd.DataFrame) or any(c not in history.columns for c in _PR_REQUIRED):
             return None
         df = _pr_prepare(history)
@@ -750,11 +750,11 @@ class PriorBuilder:
         return {"g_mean": g_mean, "g_var": g_var, "cells": cells, "arms": arms, "g_share": g_share}
 
     def _from_history(self, arm: ArmKey, st: dict, prices: dict[str, float]) -> Prior:
-        """Hierarchical shrinkage prior for one arm.
+        """Иерархический shrinkage-априор для одного arm.
 
-        Observed arm (c > 0): share ~ Beta(c+1, tot-c+1). Unobserved arm (c == 0): the scorer
-        falls back to a rule with the median arm conversion, so share = global median share
-        (weak, pseudo-count 2) and a price-sign shift is added in base-ratio units.
+        Наблюдаемый arm (c > 0): share ~ Beta(c+1, tot-c+1). Ненаблюдаемый arm (c == 0): скорер
+        переходит на правило с медианной конверсией arm, поэтому share = глобальная медианная share
+        (слабо, pseudo-count 2), и добавляется сдвиг по знаку цены в единицах base ratio.
         """
         k, tau = self._k, self._tau
         g_mean, g_var = st["g_mean"], st["g_var"]
@@ -774,7 +774,7 @@ class PriorBuilder:
             source = "arm"
         else:
             share = st["g_share"]
-            var_share = share * (1.0 - share) / 3.0  # weak: Beta with pseudo-count 2
+            var_share = share * (1.0 - share) / 3.0  # слабый: Beta с pseudo-count 2
             source = "cell" if tot > 0 else "global"
         share = min(max(float(share), 1e-6), 1.0)
 
@@ -797,24 +797,24 @@ import math
 
 import numpy as np
 
-# Posterior of the per-arm lift ratio, per evaluation channel.
+# Апостериорное распределение lift ratio для каждого arm по каждому каналу оценки.
 #
-# Model (plan, "Posterior и перенос между каналами"):
-#   true ratio on channel c:  r_c = change * min(conv * mult_c, 1)
-#   prior base ratio (mult 1): mu ~= change * share, with share = c_hat (prior conversion estimate)
-#   => prior on channel c:     r_c ~ N(mu * k(c), (sd * k(c))^2),   k(c) = min(mult_c * c_hat, 1) / c_hat
-#   pilot on channel p:        y = r_p + eps,  eps ~ N(0, s^2 / n_actual)
-#   transfer p -> c:           r_c = r_p * k(c, p),  k(c, p) = min(mult_c * c_hat, 1) / min(mult_p * c_hat, 1)
+# Модель (план, "Posterior и перенос между каналами"):
+#   истинный ratio на канале c:  r_c = change * min(conv * mult_c, 1)
+#   априорный базовый ratio (mult 1): mu ~= change * share, где share = c_hat (априорная оценка конверсии)
+#   => prior на канале c:     r_c ~ N(mu * k(c), (sd * k(c))^2),   k(c) = min(mult_c * c_hat, 1) / c_hat
+#   пилот на канале p:        y = r_p + eps,  eps ~ N(0, s^2 / n_actual)
+#   перенос p -> c:           r_c = r_p * k(c, p),  k(c, p) = min(mult_c * c_hat, 1) / min(mult_p * c_hat, 1)
 #
-# Upscaling (k(c,p) > 1) is where saturation (min(., 1)) may bite with the true conversion, so the transfer
-# is made conservative in two ways:
-#   * mean: a *positive* y is multiplied by k_eff = kappa_up * k(c, p) (discount towards 0); negative
-#     evidence is transferred undiscounted (y * k) so harmful arms are never made to look less harmful;
-#   * variance: the transferred sd is noise_sd / sqrt(n) * k(c, p) (the *undiscounted* factor), i.e. the
-#     variance is inflated by 1/kappa_up^2 relative to a plain rescale by k_eff. This lowers the weight of
-#     upscaled evidence, reflecting uncertainty about the saturation point.
-# Downscaling (k <= 1) and same-channel evidence are transferred exactly (k_eff = k, sd * k).
-# Each evaluation channel gets its own Gaussian conjugate update (normal-normal, known noise variance).
+# При масштабировании вверх (k(c,p) > 1) может сработать насыщение (min(., 1)) при истинной конверсии, поэтому перенос
+# делается консервативным двумя способами:
+#   * среднее: *положительный* y умножается на k_eff = kappa_up * k(c, p) (дисконт к 0); отрицательные
+#     данные переносятся без дисконта (y * k), чтобы вредные arm никогда не выглядели менее вредными;
+#   * дисперсия: перенесённое sd = noise_sd / sqrt(n) * k(c, p) (*недисконтированный* множитель), т.е.
+#     дисперсия увеличена в 1/kappa_up^2 раз относительно простого масштабирования на k_eff. Это снижает вес
+#     масштабированных вверх данных, отражая неопределённость точки насыщения.
+# Масштабирование вниз (k <= 1) и данные того же канала переносятся точно (k_eff = k, sd * k).
+# Каждый канал оценки получает собственное гауссово сопряжённое обновление (normal-normal, известная дисперсия шума).
 
 _AM_MIN_SHARE = 1e-3
 _AM_MIN_SD = 1e-9
@@ -822,7 +822,7 @@ _AM_DEFAULT_SD = 0.25
 
 
 def _am_pos_float(x: Any, default: float) -> float:
-    """float(x) if finite and > 0, else default."""
+    """float(x) если конечно и > 0, иначе default."""
     try:
         v = float(x)
     except (TypeError, ValueError):
@@ -831,7 +831,7 @@ def _am_pos_float(x: Any, default: float) -> float:
 
 
 def _am_finite(x: Any, default: float) -> float:
-    """float(x) if finite, else default."""
+    """float(x) если конечно, иначе default."""
     try:
         v = float(x)
     except (TypeError, ValueError):
@@ -840,7 +840,7 @@ def _am_finite(x: Any, default: float) -> float:
 
 
 class ArmModel:
-    """Gaussian conjugate posterior of lift ratio per (arm, channel) with cross-channel transfer."""
+    """Гауссов сопряжённый posterior lift ratio по (arm, channel) с переносом между каналами."""
 
     def __init__(self, cfg: Config, dv: Any, priors: dict[ArmKey, Prior]):
         self.cfg = cfg
@@ -853,7 +853,7 @@ class ArmModel:
         self._noise_sd = _am_pos_float(getattr(cfg, "noise_sd", None), 0.804)
         kap = _am_pos_float(getattr(cfg, "kappa_up", None), 1.0)
         self._kappa_up = min(kap, 1.0)
-        # empirical-Bayes prior calibration (extension): prior mean *= beta, prior var += tau2 (base scale)
+        # калибровка prior методом эмпирического Байеса (расширение): prior mean *= beta, prior var += tau2 (базовая шкала)
         self._beta = 1.0
         self._tau2 = 0.0
         self.calibration: dict = {"beta": 1.0, "tau": 0.0, "n_arms": 0}
@@ -861,11 +861,11 @@ class ArmModel:
     # ------------------------------------------------------------------ data
     @property
     def observations(self) -> list[Observation]:
-        """All observations in add() order (a copy; mutate via add() only)."""
+        """Все наблюдения в порядке add() (копия; изменять только через add())."""
         return list(self._obs)
 
     def add(self, obs: Observation) -> None:
-        """Register a pilot observation (invalidates cached posteriors of its arm)."""
+        """Регистрирует наблюдение пилота (сбрасывает кэш posterior его arm)."""
         arm = tuple(obs.arm)
         self._obs.append(obs)
         self._by_arm.setdefault(arm, []).append(obs)
@@ -873,11 +873,11 @@ class ArmModel:
             del self._cache[key]
 
     def n_obs(self, arm: ArmKey) -> int:
-        """Number of observations recorded for an arm (any channel)."""
+        """Число наблюдений, записанных для arm (любой канал)."""
         return len(self._by_arm.get(tuple(arm), ()))
 
     def observations_for(self, arm: ArmKey) -> list[Observation]:
-        """Observations of one arm, in add() order (extension)."""
+        """Наблюдения одного arm в порядке add() (расширение)."""
         return list(self._by_arm.get(tuple(arm), ()))
 
     # ------------------------------------------------------------- transfer
@@ -894,7 +894,7 @@ class ArmModel:
         return m
 
     def share(self, arm: ArmKey) -> float:
-        """Prior conversion estimate c_hat used for channel transfer (extension)."""
+        """Априорная оценка конверсии c_hat для переноса между каналами (расширение)."""
         pr = self.priors.get(tuple(arm))
         s = pr.share if pr is not None else self.cfg.conv_prior_default
         try:
@@ -906,15 +906,15 @@ class ArmModel:
         return min(max(s, _AM_MIN_SHARE), 1.0)
 
     def k_channel(self, arm: ArmKey, channel: str) -> float:
-        """k(c) = min(mult_c * c_hat, 1) / c_hat: scale from base ratio (mult 1) to channel c (extension)."""
+        """k(c) = min(mult_c * c_hat, 1) / c_hat: масштаб от базового ratio (mult 1) к каналу c (расширение)."""
         s = self.share(arm)
         return min(self._mult(channel) * s, 1.0) / s
 
     def k_transfer(self, arm: ArmKey, eval_channel: str, pilot_channel: str) -> tuple[float, float]:
-        """(k_mean, k_sd) for moving evidence from pilot_channel to eval_channel (extension).
+        """(k_mean, k_sd) для переноса данных с pilot_channel на eval_channel (расширение).
 
-        k_mean includes the kappa_up discount when upscaling (applied to positive evidence only, see
-        _transfer); k_sd is the undiscounted factor.
+        k_mean включает дисконт kappa_up при масштабировании вверх (только для положительных данных, см.
+        _transfer); k_sd — недисконтированный множитель.
         """
         if eval_channel == pilot_channel:
             return 1.0, 1.0
@@ -926,7 +926,7 @@ class ArmModel:
 
     # ------------------------------------------------------------ posterior
     def prior_on(self, arm: ArmKey, channel: str) -> Posterior:
-        """Prior of the lift ratio on a channel (extension). Unknown arm -> Posterior(0, 0.25) on every channel."""
+        """Prior lift ratio на канале (расширение). Неизвестный arm -> Posterior(0, 0.25) на каждом канале."""
         arm = tuple(arm)
         pr = self.priors.get(arm)
         if pr is None:
@@ -937,12 +937,12 @@ class ArmModel:
         return Posterior(mu * k, max(sd * k, _AM_MIN_SD))
 
     def calibrate(self, min_arms: int = 3, beta_prior_sd: float = 0.5, max_tau: float = 0.25) -> dict:
-        """Check the history prior against pilot evidence (extension; empirical Bayes, deterministic).
+        """Проверяет исторический prior по данным пилотов (расширение; эмпирический Байес, детерминированно).
 
-        The history describes another population, so the prior may be biased or overconfident. Using the first
-        observation of every arm with a history prior: y_i = beta·m_i + e_i, var(e_i) = k_i²(sd_i² + tau²) +
-        noise_i². beta ~ N(1, beta_prior_sd²) is fitted by weighted least squares (clipped to [0, 2]); tau² by the
-        method of moments on the residuals (capped at max_tau²). Fewer than `min_arms` arms -> no calibration.
+        История описывает другую популяцию, поэтому prior может быть смещён или излишне уверен. По первому
+        наблюдению каждого arm с историческим prior: y_i = beta·m_i + e_i, var(e_i) = k_i²(sd_i² + tau²) +
+        noise_i². beta ~ N(1, beta_prior_sd²) оценивается взвешенным МНК (с обрезкой до [0, 2]); tau² — методом
+        моментов по остаткам (не больше max_tau²). Меньше `min_arms` arm -> без калибровки.
         """
         rows = []
         for arm in sorted(self._by_arm):
@@ -983,7 +983,7 @@ class ArmModel:
 
     def _transfer(self, arm: ArmKey, pilot_channel: str, y: float, n: float,
                   eval_channel: str) -> tuple[float, float] | None:
-        """Transferred (value, variance) of one observation on eval_channel, or None if unusable."""
+        """Перенесённые (value, variance) одного наблюдения на eval_channel или None, если оно непригодно."""
         try:
             y = float(y)
             n = float(n)
@@ -993,7 +993,7 @@ class ArmModel:
             return None
         km, ks = self.k_transfer(arm, eval_channel, pilot_channel)
         if y < 0:
-            km = ks  # never discount harmful evidence towards 0
+            km = ks  # никогда не дисконтируем вредные данные к 0
         sd = self._noise_sd / math.sqrt(n) * ks
         val = y * km
         if not math.isfinite(val) or not math.isfinite(sd):
@@ -1002,13 +1002,13 @@ class ArmModel:
 
     @staticmethod
     def _update(mean: float, var: float, y: float, obs_var: float) -> tuple[float, float]:
-        """Normal-normal conjugate update with known observation variance."""
+        """Сопряжённое normal-normal обновление при известной дисперсии наблюдения."""
         prec = 1.0 / var + 1.0 / obs_var
         new_var = 1.0 / prec
         return new_var * (mean / var + y / obs_var), new_var
 
     def posterior(self, arm: ArmKey, channel: str) -> Posterior:
-        """Posterior of the lift ratio of `arm` on `channel` (channel multiplier included)."""
+        """Posterior lift ratio для `arm` на `channel` (с учётом множителя канала)."""
         arm = tuple(arm)
         key = (arm, channel)
         hit = self._cache.get(key)
@@ -1026,7 +1026,7 @@ class ArmModel:
 
     def posterior_after(self, arm: ArmKey, pilot_channel: str, y: float, n: int,
                         eval_channel: str) -> Posterior:
-        """Posterior on eval_channel if a pilot on pilot_channel returned y with n customers (no mutation)."""
+        """Posterior на eval_channel, если пилот на pilot_channel вернул y при n клиентах (без мутации)."""
         arm = tuple(arm)
         cur = self.posterior(arm, eval_channel)
         t = self._transfer(arm, pilot_channel, y, n, eval_channel)
@@ -1036,17 +1036,17 @@ class ArmModel:
         return Posterior(float(mean), float(math.sqrt(var)))
 
     def predictive_sd(self, arm: ArmKey, pilot_channel: str, n: int) -> float:
-        """Sd of the predictive distribution of a pilot's y on pilot_channel (extension, for KG)."""
+        """Sd предиктивного распределения y пилота на pilot_channel (расширение, для KG)."""
         post = self.posterior(arm, pilot_channel)
         n = max(float(n), 1.0)
         return math.sqrt(post.sd ** 2 + self._noise_sd ** 2 / n)
 
     # --------------------------------------------------------------- option
     def option(self, sub: SubCell, target: str, channel: str) -> Option:
-        """Net-value option of contacting the whole sub-cell with (target, channel).
+        """Опция чистой ценности контакта всей sub-cell с (target, channel).
 
-        A channel whose cost cannot be read (or is negative / non-finite) yields a non-viable option
-        (cost = inf, net = -inf, p_pos = 0) instead of silently assuming a free channel.
+        Канал, стоимость которого нельзя прочитать (или она отрицательна / не конечна), даёт нежизнеспособную опцию
+        (cost = inf, net = -inf, p_pos = 0), вместо молчаливого допущения бесплатного канала.
         """
         key = tuple(sub.key)
         arm = (key[0], key[1], target)
@@ -1098,19 +1098,19 @@ _SIM_SEG_FILTERS = (
 
 
 def _sim_is_set(value: Any) -> bool:
-    """Replica of ``pd.notna(value)`` used in scoring_core.apply_filters (scalar only)."""
+    """Копия ``pd.notna(value)`` из scoring_core.apply_filters (только скаляры)."""
     try:
         res = pd.notna(value)
-    except Exception:  # pragma: no cover - defensive
+    except Exception:  # pragma: no cover - защитная ветка
         return False
     if isinstance(res, (bool, np.bool_)):
         return bool(res)
-    # list-like value: scoring_core would fail on `if array`; treat as "set" (matches nothing).
+    # списочное значение: scoring_core упал бы на `if array`; считаем "заданным" (ничего не совпадает).
     return True
 
 
 def _sim_explicit(campaign: dict) -> list | None:
-    """Explicit id list (pilot-style campaigns) or None."""
+    """Явный список id (пилотные кампании) или None."""
     explicit = campaign.get("explicit_ids")
     if isinstance(explicit, (list, tuple, set, np.ndarray)) and len(explicit) > 0:
         return list(explicit)
@@ -1118,7 +1118,7 @@ def _sim_explicit(campaign: dict) -> list | None:
 
 
 def _sim_member(value: Any, allowed: set) -> bool:
-    """``value in allowed`` that is False (not TypeError) for unhashable values."""
+    """``value in allowed``, возвращающий False (а не TypeError) для нехешируемых значений."""
     try:
         return value in allowed
     except TypeError:
@@ -1126,7 +1126,7 @@ def _sim_member(value: Any, allowed: set) -> bool:
 
 
 def _sim_limit_int(value: Any) -> int:
-    """Contact limit as int: +inf -> effectively unlimited, NaN / invalid -> 0."""
+    """Лимит контактов как int: +inf -> фактически без ограничений, NaN / некорректное -> 0."""
     try:
         v = float(value)
     except (TypeError, ValueError):
@@ -1139,7 +1139,7 @@ def _sim_limit_int(value: Any) -> int:
 
 
 class ScoreSimulator:
-    """Exact, vectorised re-implementation of ``score_campaigns`` for a given ratio function."""
+    """Точная векторизованная реализация ``score_campaigns`` для заданной функции ratio."""
 
     def __init__(self, dv: Any, profile: pd.DataFrame):
         self.dv = dv
@@ -1147,7 +1147,7 @@ class ScoreSimulator:
         self._profile = prof
         self._n = len(prof)
         self._ids = prof["ID_NUMBER"].to_numpy()
-        # customer index per row: dedup is by ID_NUMBER (groupby), null IDs are never counted in gross
+        # индекс абонента по строке: дедупликация по ID_NUMBER (groupby), пустые ID не учитываются в gross
         cust, cust_uniq = pd.factorize(prof["ID_NUMBER"], use_na_sentinel=True)
         self._cust = cust.astype(np.int64)
         self._n_cust = len(cust_uniq)
@@ -1162,7 +1162,7 @@ class ScoreSimulator:
             self._uniques[col] = uniq
             self._lookup[col] = {u: i for i, u in enumerate(uniq)}
         n_arpu = len(self._uniques["arpu_segment"]) + 1
-        # combo id over (tariff, arpu) with NaN mapped to the extra last slot
+        # id комбинации (tariff, arpu); NaN отображается в дополнительный последний слот
         t = self._codes["current_tariff"].copy()
         a = self._codes["arpu_segment"].copy()
         t[t < 0] = len(self._uniques["current_tariff"])
@@ -1172,24 +1172,24 @@ class ScoreSimulator:
         self._tariff_codes = set(getattr(dv, "tariff_codes", []) or [])
         self._channels = set(getattr(dv, "channels", []) or [])
 
-    # ------------------------------------------------------------------ filters
+    # ------------------------------------------------------------------ фильтры
     def _col_mask(self, col: str, value: Any) -> np.ndarray:
         code = None
         try:
             code = self._lookup[col].get(value)
-        except TypeError:  # unhashable
+        except TypeError:  # нехешируемое
             code = None
         if code is None:
             return np.zeros(self._n, dtype=bool)
         return self._codes[col] == code
 
     def _indices(self, campaign: dict) -> np.ndarray:
-        """Row positions (ascending ID order) selected by the campaign filters."""
+        """Позиции строк (по возрастанию ID), отобранные фильтрами кампании."""
         explicit = _sim_explicit(campaign)
         if explicit is not None:
             try:
                 hit = self._profile["ID_NUMBER"].isin(explicit).to_numpy(dtype=bool)
-            except TypeError:  # unhashable members
+            except TypeError:  # нехешируемые элементы
                 hit = np.zeros(self._n, dtype=bool)
             return np.flatnonzero(hit)
         mask = np.ones(self._n, dtype=bool)
@@ -1205,15 +1205,15 @@ class ScoreSimulator:
         return np.flatnonzero(mask)
 
     def segment(self, campaign: dict) -> pd.DataFrame:
-        """Rows matching the campaign filters, sorted by ID_NUMBER, before any caps."""
+        """Строки, подходящие под фильтры кампании, отсортированные по ID_NUMBER, до любых ограничений."""
         return self._profile.iloc[self._indices(campaign)]
 
-    # ------------------------------------------------------------------ ratios
+    # ------------------------------------------------------------------ коэффициенты
     def _ratio_table(self, idx: np.ndarray, target: str, channel: str,
                      ratio_fn: Callable[[str, str, str, str], float]) -> tuple[np.ndarray, int]:
-        """Per-row lift ratio for rows ``idx`` (NaN keys passed to ratio_fn as None) and #ratio_fn errors.
+        """Коэффициент лифта по строкам ``idx`` (NaN-ключи передаются в ratio_fn как None) и число ошибок ratio_fn.
 
-        A ratio_fn exception yields ratio 0 for that (tariff, arpu) combo and is counted, not raised.
+        Исключение в ratio_fn даёт ratio 0 для этой комбинации (tariff, arpu) и учитывается, а не пробрасывается.
         """
         combos = self._combo[idx]
         uniq, inv = np.unique(combos, return_inverse=True)
@@ -1232,17 +1232,17 @@ class ScoreSimulator:
             vals[j] = r
         return vals[inv], errors
 
-    # ------------------------------------------------------------------ simulate
+    # ------------------------------------------------------------------ симуляция
     def simulate(self, campaigns: list[dict], ratio_fn: Callable[[str, str, str, str], float],
                  budget: float, contacts: int) -> SimResult:
-        """Score ``campaigns`` in order against starting limits ``budget`` / ``contacts``.
+        """Оценивает ``campaigns`` по порядку при стартовых лимитах ``budget`` / ``contacts``.
 
-        Campaigns with an unknown target/channel get a zero ``dropped`` entry (keeps ``per_campaign``
-        index-aligned with ``campaigns``) and are otherwise skipped, as sanitize_campaigns does.
-        A campaign may carry ``explicit_ids`` (pilot-style) — then filters are ignored.
-        Limits: +inf means unlimited, NaN / negative means none left.
-        Deviation from the organizer (robustness only): non-finite per-customer lifts count as 0
-        (the organizer zeroes only NaN); ratio_fn exceptions give ratio 0 and are counted in
+        Кампании с неизвестным target/channel получают нулевую запись ``dropped`` (сохраняет
+        выравнивание индексов ``per_campaign`` с ``campaigns``) и далее пропускаются, как в sanitize_campaigns.
+        Кампания может содержать ``explicit_ids`` (пилотный режим) — тогда фильтры игнорируются.
+        Лимиты: +inf означает без ограничений, NaN / отрицательное — ничего не осталось.
+        Отличие от организаторов (только для устойчивости): неконечные лифты по абоненту считаются 0
+        (организаторы обнуляют только NaN); исключения ratio_fn дают ratio 0 и учитываются в
         ``per_campaign[i]["ratio_errors"]``.
         """
         best = np.full(self._n_cust, -np.inf)
@@ -1317,10 +1317,10 @@ class ScoreSimulator:
 # ======================================================================
 # agent_src/m50_allocator.py
 # ======================================================================
-# Allocator: choose at most one (target, channel) option per sub-cell under money and reach limits.
-# Method: per-sub admissible options -> Lagrangian relaxation over (money, reach) with nested bisection
-# (outer lambda_reach, inner lambda_money) -> feasibility repair -> greedy fill of leftover resources
-# -> drop-and-refill local search. Deterministic (ties broken by sub key order, then option order).
+# Аллокатор: выбирает не более одной опции (target, channel) на подячейку при ограничениях по деньгам и охвату.
+# Метод: допустимые опции по подячейкам -> лагранжева релаксация по (money, reach) с вложенной бисекцией
+# (внешняя lambda_reach, внутренняя lambda_money) -> восстановление допустимости -> жадное заполнение остатка ресурсов
+# -> локальный поиск drop-and-refill. Детерминирован (ничьи решаются порядком ключей sub, затем порядком опций).
 
 import math
 
@@ -1331,7 +1331,7 @@ _ALLOC_EPS = 1e-9
 
 
 class Allocator:
-    """Budget/contacts-constrained assignment of options to sub-cells."""
+    """Назначение опций подячейкам с ограничениями по бюджету и контактам."""
 
     def __init__(self, cfg: Config, dv: Any, model: Any, log: Optional[RunLog] = None) -> None:
         self.cfg = cfg
@@ -1339,14 +1339,14 @@ class Allocator:
         self.model = model
         self.log = log
 
-    # ------------------------------------------------------------------ options
+    # ------------------------------------------------------------------ опции
 
     def _alloc_rank_targets(self, cell: CellKey) -> list[str]:
-        """Top `top_targets_per_cell` targets of a cell by posterior mean normalised to multiplier 1.
+        """Топ `top_targets_per_cell` целей ячейки по апостериорному среднему, нормированному к множителю 1.
 
-        Score of a target = max over channels of posterior(arm, ch).mean / k(arm, ch), where k is the
-        model's channel scale (`model.k_channel`, saturation-aware) or, if absent, the raw multiplier.
-        Ties -> target code order.
+        Оценка цели = максимум по каналам posterior(arm, ch).mean / k(arm, ch), где k —
+        масштаб канала модели (`model.k_channel`, с учётом насыщения) или, если его нет, исходный множитель.
+        Ничьи -> порядок кодов целей.
         """
         k_fn = getattr(self.model, "k_channel", None)
         scored: list[tuple[float, int, str]] = []
@@ -1366,7 +1366,7 @@ class Allocator:
         return [t for _, _, t in scored[:k]]
 
     def _alloc_admissible(self, opt: Option) -> bool:
-        """p_pos / net_lcb admissibility of one option."""
+        """Допустимость одной опции по p_pos / net_lcb."""
         if not (math.isfinite(opt.net_lcb) and math.isfinite(opt.cost) and math.isfinite(opt.p_pos)):
             return False
         if opt.n <= 0 or opt.net_lcb <= 0.0:
@@ -1375,7 +1375,7 @@ class Allocator:
         return opt.p_pos >= p_min
 
     def options_for(self, sub: SubCell, targets: Optional[list[str]] = None) -> list[Option]:
-        """Admissible options of one sub-cell, sorted by net_lcb desc (ties: target rank, channel order)."""
+        """Допустимые опции одной подячейки, отсортированные по убыванию net_lcb (ничьи: ранг цели, порядок каналов)."""
         cell = sub.key[:2]
         if targets is None:
             targets = self._alloc_rank_targets(cell)
@@ -1388,11 +1388,11 @@ class Allocator:
         rows.sort(key=lambda r: (r[0], r[1], r[2]))
         return [r[3] for r in rows]
 
-    # ------------------------------------------------------------------ allocate
+    # ------------------------------------------------------------------ распределение
 
     def _alloc_build(self, exclude_subs: Iterable[SubKey], extra_cost: Optional[dict]) -> tuple[
             list[SubKey], list[list[Option]], np.ndarray, np.ndarray, np.ndarray]:
-        """Matrices (subs x options) of value, cost, contacts; padding has value -inf."""
+        """Матрицы (subs x options) ценности, стоимости, контактов; у заполнителей значение -inf."""
         excl = set(exclude_subs or ())
         extra = extra_cost or {}
         rank_cache: dict[CellKey, list[str]] = {}
@@ -1407,7 +1407,7 @@ class Allocator:
             if cell not in rank_cache:
                 rank_cache[cell] = self._alloc_rank_targets(cell)
             ex = float(extra.get(key, 0.0) or 0.0)
-            if math.isnan(ex) or ex < 0.0:  # penalties only; +inf excludes the sub
+            if math.isnan(ex) or ex < 0.0:  # только штрафы; +inf исключает подячейку
                 ex = 0.0
             row_o: list[Option] = []
             row_v: list[float] = []
@@ -1434,7 +1434,7 @@ class Allocator:
 
     @staticmethod
     def _alloc_choose(V: np.ndarray, C: np.ndarray, N: np.ndarray, lm: float, lr: float) -> np.ndarray:
-        """Per-sub argmax of V - lm*C - lr*N if positive, else -1 (first max wins ties)."""
+        """Для каждой подячейки argmax V - lm*C - lr*N, если положителен, иначе -1 (при ничьей побеждает первый максимум)."""
         if V.shape[0] == 0:
             return np.zeros(0, dtype=np.int64)
         adj = V - lm * C - lr * N
@@ -1444,7 +1444,7 @@ class Allocator:
 
     @staticmethod
     def _alloc_totals(ch: np.ndarray, V: np.ndarray, C: np.ndarray, N: np.ndarray) -> tuple[float, float, float]:
-        """(value, cost, contacts) of a choice vector."""
+        """(value, cost, contacts) вектора выбора."""
         on = ch >= 0
         if not on.any():
             return 0.0, 0.0, 0.0
@@ -1453,7 +1453,7 @@ class Allocator:
         return float(V[r, c].sum()), float(C[r, c].sum()), float(N[r, c].sum())
 
     def _alloc_min_lm(self, V, C, N, lr: float, budget: float) -> tuple[float, np.ndarray]:
-        """Smallest lambda_money (bisection) whose choice fits the money budget, given lambda_reach."""
+        """Наименьшая lambda_money (бисекцией), при которой выбор укладывается в денежный бюджет при заданной lambda_reach."""
         ch = self._alloc_choose(V, C, N, 0.0, lr)
         if self._alloc_totals(ch, V, C, N)[1] <= budget + _ALLOC_EPS:
             return 0.0, ch
@@ -1471,15 +1471,15 @@ class Allocator:
         return hi, best
 
     def _alloc_lagrange(self, V, C, N, budget: float, contacts: float) -> tuple[float, float, np.ndarray]:
-        """Nested bisection: outer lambda_reach, inner lambda_money. Returns feasible (lm, lr, choice)."""
+        """Вложенная бисекция: внешняя lambda_reach, внутренняя lambda_money. Возвращает допустимые (lm, lr, choice)."""
         lm, ch = self._alloc_min_lm(V, C, N, 0.0, budget)
         if self._alloc_totals(ch, V, C, N)[2] <= contacts + _ALLOC_EPS:
             return lm, 0.0, ch
         fin = np.isfinite(V) & (N > 0)
         lo, hi = 0.0, float(np.max(V[fin] / N[fin])) * 1.01 + 1e-6
         best_lm, best_ch = self._alloc_min_lm(V, C, N, hi, budget)
-        # contacts need not be monotone in lambda_reach once lambda_money is re-solved, so also keep
-        # the best-valued feasible iterate as the primal seed (the multipliers stay the bisection ones)
+        # контакты не обязаны быть монотонны по lambda_reach после пересчёта lambda_money, поэтому также храним
+        # лучшую по ценности допустимую итерацию как прямое начальное решение (множители остаются из бисекции)
         seed, seed_v = best_ch, self._alloc_totals(best_ch, V, C, N)[0]
         for _ in range(_ALLOC_BISECT_ITERS):
             mid = 0.5 * (lo + hi)
@@ -1495,9 +1495,9 @@ class Allocator:
 
     def _alloc_repair(self, ch: np.ndarray, V, C, N, budget: float, contacts: float,
                       keep: int = -1) -> np.ndarray:
-        """Drop the option with the lowest value per unit of the binding resource until feasible.
+        """Удалять опцию с наименьшей ценностью на единицу связывающего ресурса, пока не станет допустимо.
 
-        Row `keep` (if >= 0) is dropped only when nothing else is left to drop.
+        Строка `keep` (если >= 0) удаляется, только когда больше нечего удалить.
         """
         ch = ch.copy()
         for _ in range(ch.size + 1):
@@ -1514,7 +1514,7 @@ class Allocator:
             else:
                 res = N[r, c]
             cand = res > 0
-            if not cand.any():  # binding resource cannot be freed by any chosen option
+            if not cand.any():  # связывающий ресурс не освобождается ни одной выбранной опцией
                 res, cand = C[r, c] + N[r, c], np.ones(r.size, dtype=bool)
             ratio = np.where(cand, v / np.maximum(res, 1e-12), np.inf)
             if keep >= 0 and r.size > 1:
@@ -1526,11 +1526,11 @@ class Allocator:
 
     def _alloc_fill(self, ch: np.ndarray, V, C, N, budget: float, contacts: float,
                     by_ratio: bool = False, frozen: Optional[np.ndarray] = None) -> np.ndarray:
-        """Greedy: repeatedly apply the feasible add/switch move with the best score.
+        """Жадно: многократно применять допустимый ход add/switch с лучшей оценкой.
 
-        Score = value gain, or (by_ratio) gain per unit of normalised resource use
-        (money share of the leftover budget + reach share of the leftover contacts).
-        Rows in `frozen` (bool mask) are not changed.
+        Оценка = прирост ценности или (by_ratio) прирост на единицу нормированного расхода ресурсов
+        (доля денег от остатка бюджета + доля охвата от остатка контактов).
+        Строки из `frozen` (булева маска) не изменяются.
         """
         ch = ch.copy()
         s = ch.size
@@ -1556,7 +1556,7 @@ class Allocator:
                 use = (np.maximum(dc, 0.0) / max(budget - cost, 1e-9)
                        + np.maximum(dn, 0.0) / max(contacts - cnt, 1e-9))
                 free = ok & (use <= 1e-12)
-                if free.any():  # moves using no extra resource first, largest gain wins
+                if free.any():  # сначала ходы без доп. ресурсов, побеждает наибольший прирост
                     g = np.where(free, gain, -np.inf)
                 else:
                     g = np.where(ok, gain / np.maximum(use, 1e-12), -np.inf)
@@ -1569,10 +1569,10 @@ class Allocator:
 
     def _alloc_refill_best(self, ch: np.ndarray, V, C, N, budget: float, contacts: float,
                            tabu: Iterable[int] = ()) -> np.ndarray:
-        """Better of the two greedy fill variants started from `ch`.
+        """Лучший из двух вариантов жадного заполнения, начиная с `ch`.
 
-        Rows in `tabu` are frozen during a first fill pass and released for a second one
-        (so a dropped sub cannot immediately take back the resources it freed).
+        Строки из `tabu` заморожены в первом проходе заполнения и освобождаются во втором
+        (чтобы удалённая подячейка не могла сразу забрать освобождённые ею ресурсы).
         """
         tabu = list(tabu)
         res = []
@@ -1588,7 +1588,7 @@ class Allocator:
 
     def _alloc_local(self, ch: np.ndarray, V, C, N, budget: float, contacts: float,
                      max_rounds: int = 4) -> np.ndarray:
-        """Drop-and-refill local search (drop one, or a pair when few are chosen); keeps strict improvements."""
+        """Локальный поиск drop-and-refill (удаляем одну опцию или пару, если выбрано мало); сохраняет строгие улучшения."""
         best = ch.copy()
         best_v = self._alloc_totals(best, V, C, N)[0]
         if best.size * V.shape[1] > 6000:
@@ -1617,7 +1617,7 @@ class Allocator:
 
     def _alloc_swap_in(self, best: np.ndarray, best_v: float, V, C, N, budget: float,
                        contacts: float) -> tuple[bool, np.ndarray, float]:
-        """Force each unchosen feasible option in, repair the rest, refill; first strict improvement wins."""
+        """Принудительно добавить каждую невыбранную допустимую опцию, восстановить остальное, дозаполнить; побеждает первое строгое улучшение."""
         for i in range(V.shape[0]):
             for j in range(V.shape[1]):
                 if (best[i] == j or not np.isfinite(V[i, j]) or C[i, j] > budget + _ALLOC_EPS
@@ -1634,20 +1634,20 @@ class Allocator:
 
     def allocate(self, budget: float, contacts: int, exclude_subs: Iterable[SubKey] = frozenset(),
                  extra_cost: Optional[dict] = None, polish: bool = True) -> Plan:
-        """Best plan (<= 1 option per sub) with total cost <= budget and contacts <= contacts.
+        """Лучший план (<= 1 опции на подячейку) с общей стоимостью <= budget и контактами <= contacts.
 
-        Objective per chosen option = net_lcb - extra_cost[sub]; `Plan.total_net_lcb` reports this objective.
-        `polish=False` skips the drop-and-refill / swap-in local search (fast mode for repeated calls).
+        Целевая функция на выбранную опцию = net_lcb - extra_cost[sub]; `Plan.total_net_lcb` возвращает эту цель.
+        `polish=False` пропускает локальный поиск drop-and-refill / swap-in (быстрый режим для повторных вызовов).
         """
         budget = float(budget)
-        budget = 0.0 if math.isnan(budget) else max(0.0, budget)  # +inf = no money limit
+        budget = 0.0 if math.isnan(budget) else max(0.0, budget)  # +inf = без денежного лимита
         contacts_f = float(contacts)
         contacts_f = 0.0 if math.isnan(contacts_f) else max(0.0, contacts_f)
         keys, opts, V, C, N = self._alloc_build(exclude_subs, extra_cost)
         if not keys:
             return self._alloc_plan(keys, opts, V, np.zeros(0, dtype=np.int64), 0.0, 0.0)
         lm, lr, ch = self._alloc_lagrange(V, C, N, budget, contacts_f)
-        # candidate starts: repaired Lagrangian solution, the unconstrained optimum repaired, empty
+        # стартовые кандидаты: восстановленное лагранжево решение, восстановленный безусловный оптимум, пустое
         empty = np.full(len(keys), -1, dtype=np.int64)
         starts = [self._alloc_repair(ch, V, C, N, budget, contacts_f),
                   self._alloc_repair(self._alloc_choose(V, C, N, 0.0, 0.0), V, C, N, budget, contacts_f),
@@ -1657,7 +1657,7 @@ class Allocator:
         ch = cands[int(np.argmax(vals))]
         if polish:
             ch = self._alloc_local(ch, V, C, N, budget, contacts_f)
-        ch = self._alloc_repair(ch, V, C, N, budget, contacts_f)  # safety net
+        ch = self._alloc_repair(ch, V, C, N, budget, contacts_f)  # страховка
         plan = self._alloc_plan(keys, opts, V, ch, lm, lr)
         if self.log is not None:
             self.log.log("allocate", n_subs=len(keys), n_options=len(plan.options), lambda_money=lm,
@@ -1678,7 +1678,7 @@ class Allocator:
                     total_contacts=int(sum(int(o.n) for o in chosen)))
 
     def shadow_prices(self, budget: float, contacts: int) -> tuple[float, float]:
-        """(lambda_money, lambda_reach) of the current Lagrangian solution."""
+        """(lambda_money, lambda_reach) текущего лагранжева решения."""
         p = self.allocate(budget, contacts, polish=False)
         return p.lambda_money, p.lambda_reach
 
@@ -1686,7 +1686,7 @@ class Allocator:
 # agent_src/m60_packer.py
 # ======================================================================
 
-# m60 CampaignPacker: turn an allocator Plan into <= 10 disjoint, valid campaigns.
+# m60 CampaignPacker: превращает Plan аллокатора в <= 10 непересекающихся валидных кампаний.
 # Упаковка плана подячеек в ≤10 непересекающихся кампаний с пересимуляцией.
 
 import math
@@ -1697,28 +1697,28 @@ from typing import Any, Callable, Optional
 
 @dataclass
 class _PackCamp:
-    """Internal campaign: filters + estimated value (from plan options)."""
+    """Внутренняя кампания: фильтры + оценка ценности (из опций плана)."""
 
     target: str
     channel: str
     arpu: str
     data: Optional[str]
     call: Optional[str]
-    tariffs: tuple  # from-tariffs, natural order
+    tariffs: tuple  # исходные тарифы, естественный порядок
     est_net: float = 0.0
     est_n: int = 0
 
     def key(self) -> tuple:
-        """Deterministic sort / identity key."""
+        """Детерминированный ключ сортировки / идентичности."""
         return (self.target, self.channel, self.arpu, self.data or "", self.call or "", self.tariffs)
 
 
-_PACK_HARD_MAX_CAMPAIGNS = 10  # organizer MAX_CAMPAIGNS
-_PACK_HARD_MAX_PER_CAMPAIGN = 5000  # organizer MAX_CUSTOMERS_PER_CAMPAIGN
+_PACK_HARD_MAX_CAMPAIGNS = 10  # MAX_CAMPAIGNS организатора
+_PACK_HARD_MAX_PER_CAMPAIGN = 5000  # MAX_CUSTOMERS_PER_CAMPAIGN организатора
 
 
 def _pack_limit(v: Any, hard: int) -> int:
-    """Config limit clamped to [1, organizer hard cap]."""
+    """Лимит из конфига, ограниченный диапазоном [1, жёсткий лимит организатора]."""
     try:
         return max(1, min(int(v), hard))
     except (TypeError, ValueError):
@@ -1726,18 +1726,18 @@ def _pack_limit(v: Any, hard: int) -> int:
 
 
 def _pack_short(code: str) -> str:
-    """'tariff_12' -> 't12'; other codes unchanged."""
+    """'tariff_12' -> 't12'; прочие коды без изменений."""
     m = re.fullmatch(r"tariff_(\d+)", str(code))
     return f"t{m.group(1)}" if m else str(code)
 
 
 def _pack_nat_key(s: str) -> tuple:
-    """Natural sort key ('tariff_2' < 'tariff_10')."""
+    """Ключ естественной сортировки ('tariff_2' < 'tariff_10')."""
     return tuple(int(p) if p.isdigit() else p for p in re.split(r"(\d+)", str(s)))
 
 
 class CampaignPacker:
-    """Packs Plan options into campaigns (grouping, coarsening, splitting, re-simulation)."""
+    """Упаковывает опции Plan в кампании (группировка, огрубление, разбиение, пересимуляция)."""
 
     def __init__(self, cfg: Config, dv: Any, sim: Any, log: Optional[RunLog] = None):
         self.cfg = cfg
@@ -1751,14 +1751,14 @@ class CampaignPacker:
         self._size_cache: dict[tuple, int] = {}
         codes = list(getattr(dv, "tariff_codes", []) or [])
         self._order = {c: i for i, c in enumerate(codes)}
-        # coarse prefix index: (tariff, arpu) and (tariff, arpu, data) -> dv sub keys
+        # грубый префиксный индекс: (tariff, arpu) и (tariff, arpu, data) -> ключи подячеек dv
         self._subs_by_ta: dict[tuple, list] = {}
         self._subs_by_tad: dict[tuple, list] = {}
         for sk in sorted(getattr(dv, "subs", {}) or {}):
             self._subs_by_ta.setdefault(sk[:2], []).append(sk)
             self._subs_by_tad.setdefault(sk[:3], []).append(sk)
 
-    # ------------------------------------------------------------------ helpers
+    # ------------------------------------------------------------------ вспомогательные
 
     def _tkey(self, code: str) -> tuple:
         return (0, self._order[code], "") if code in self._order else (1, 0, _pack_nat_key(code))
@@ -1785,12 +1785,12 @@ class CampaignPacker:
                 f"{c.call or 'ALL'}_{'+'.join(shorts)}")
 
     def _size(self, c: _PackCamp) -> int:
-        """Exact segment size (before caps) via the simulator (cached; independent of target/channel)."""
+        """Точный размер сегмента (до лимитов) через симулятор (кэшируется; не зависит от target/channel)."""
         k = (c.arpu, c.data, c.call, c.tariffs)
         if k not in self._size_cache:
             try:
                 v = int(len(self.sim.segment(self._to_dict(c))))
-            except Exception:  # noqa: BLE001 - fall back to dv sub counts
+            except Exception:  # noqa: BLE001 - откат к счётчикам подячеек dv
                 subs = getattr(self.dv, "subs", {}) or {}
                 v = int(sum(s.n for sk, s in subs.items() if self._covers(c, sk)))
             self._size_cache[k] = v
@@ -1802,7 +1802,7 @@ class CampaignPacker:
                 and (c.call is None or sk[3] == c.call))
 
     def _estimate(self, c: _PackCamp, assign: dict) -> _PackCamp:
-        """Recompute est_net / est_n from assigned options covered by c."""
+        """Пересчитать est_net / est_n по назначенным опциям, покрытым c."""
         net, n = 0.0, 0
         for sk, opt in assign.items():
             if opt.target == c.target and opt.channel == c.channel and self._covers(c, sk):
@@ -1812,7 +1812,7 @@ class CampaignPacker:
         c.est_net, c.est_n = net, n
         return c
 
-    # ------------------------------------------------------------------ steps
+    # ------------------------------------------------------------------ шаги
 
     def _group(self, assign: dict) -> list[_PackCamp]:
         groups: dict[tuple, list[str]] = {}
@@ -1826,7 +1826,7 @@ class CampaignPacker:
         return out
 
     def _split(self, c: _PackCamp, assign: dict) -> list[_PackCamp]:
-        """Split a campaign whose segment exceeds max_per_campaign (tariffs first, then segments)."""
+        """Разбить кампанию, сегмент которой превышает max_per_campaign (сначала по тарифам, затем по сегментам)."""
         limit = self._max_per
         size = self._size(c)
         if size <= limit:
@@ -1849,7 +1849,7 @@ class CampaignPacker:
                 out.extend(self._split(self._estimate(part, assign), assign))
             return out
         if c.data is None or c.call is None:
-            # refine the coarsest unset segment; parts without assigned subs are skipped
+            # уточняем самый грубый незаданный сегмент; части без назначенных подячеек пропускаются
             out = []
             if c.data is None:
                 parts = [(d, None) for d in DATA_SEGMENTS]
@@ -1860,16 +1860,16 @@ class CampaignPacker:
                 if part.est_n > 0:
                     out.extend(self._split(part, assign))
             return out
-        return [c]  # single fully-filtered sub > limit: scoring caps it at 5000
+        return [c]  # одна полностью отфильтрованная подячейка > лимита: скоринг обрежет её до 5000
 
     def _merge_candidates(self, camps: list[_PackCamp], assign: dict) -> list[tuple]:
-        """All exact coarsening merges: (reduction, level_rank, key, new_camps)."""
+        """Все точные слияния-огрубления: (reduction, level_rank, key, new_camps)."""
         cands = []
         pairs = sorted({(c.target, c.channel, c.arpu) for c in camps})
         for tg, ch, a in pairs:
             same = [c for c in camps if (c.target, c.channel, c.arpu) == (tg, ch, a)]
             for level, data in [(0, d) for d in DATA_SEGMENTS] + [(1, None)]:
-                # level 0: drop call split (coarse filter data=d, call=None); level 1: drop data split too
+                # уровень 0: убираем разбиение по call (грубый фильтр data=d, call=None); уровень 1: убираем и разбиение по data
                 finer = [c for c in same if (c.data == data if data is not None else True)
                          and not (c.data == data and c.call is None)]
                 if not finer:
@@ -1903,7 +1903,7 @@ class CampaignPacker:
                 if reduction <= 0:
                     continue
                 size = self._size(coarse)
-                # exact only: rows with NaN data/call (in no sub) would leak in once the filter is dropped
+                # только точные: строки с NaN в data/call (вне подячеек) просочились бы после снятия фильтра
                 expected = (self._size(existing[0]) if existing else 0) + sum(
                     int(self.dv.subs[sk].n) for t in elig
                     for sk in (self._subs_by_tad.get((t, a, data), []) if data is not None
@@ -1928,7 +1928,7 @@ class CampaignPacker:
                 continue
             worst = min(camps, key=lambda c: (c.est_net, c.key()))
             camps = [c for c in camps if c is not worst]
-            # dropped subs leave the assignment so later merges cannot silently re-add them
+            # удалённые подячейки выходят из назначения, чтобы последующие слияния не вернули их незаметно
             for sk in [sk for sk, o in assign.items()
                        if o.target == worst.target and o.channel == worst.channel and self._covers(worst, sk)]:
                 del assign[sk]
@@ -1943,7 +1943,7 @@ class CampaignPacker:
             if k not in cache:
                 try:
                     v = float(model.posterior((cur, arpu, target), channel).mean)
-                except Exception:  # noqa: BLE001 - unknown arm -> no effect
+                except Exception:  # noqa: BLE001 - неизвестный arm -> нет эффекта
                     v = 0.0
                 cache[k] = v if math.isfinite(v) else 0.0
             return cache[k]
@@ -1951,7 +1951,7 @@ class CampaignPacker:
         return fn
 
     def _prune(self, dicts: list[dict], ratio_fn: Callable, budget: float, contacts: int) -> tuple[list[dict], list]:
-        """Drop campaigns with simulated marginal net <= 0 (worst first, re-simulating)."""
+        """Удалить кампании с симулированным предельным net <= 0 (сначала худшие, с пересимуляцией)."""
         dropped = []
         while dicts:
             full = self.sim.simulate(dicts, ratio_fn, budget, contacts)
@@ -1970,10 +1970,10 @@ class CampaignPacker:
             self.last_sim = None
         return dicts, dropped
 
-    # ------------------------------------------------------------------ public
+    # ------------------------------------------------------------------ публичное API
 
     def pack(self, plan: Plan, model: Any, budget: float, contacts: int) -> list[dict]:
-        """Plan -> ordered list of <= max_campaigns disjoint campaign dicts ([] if nothing pays off)."""
+        """Plan -> упорядоченный список из <= max_campaigns непересекающихся кампаний-словарей ([], если ничего не окупается)."""
         self.last_sim = None
         self._size_cache = {}
         budget = float(budget) if budget is not None and math.isfinite(float(budget)) else 0.0
@@ -1986,7 +1986,7 @@ class CampaignPacker:
         for opt in sorted(plan.options, key=lambda o: (tuple(o.sub), o.target, o.channel)):
             sk = tuple(opt.sub)
             if sk[0] == opt.target or sk in assign:
-                continue  # never target == from; at most one option per sub
+                continue  # никогда target == from; не более одной опции на подячейку
             assign[sk] = opt
         n_options = len(assign)
         camps = self._group(assign)
@@ -1999,7 +1999,7 @@ class CampaignPacker:
         dicts = [self._to_dict(c, self._name(c, i + 1)) for i, c in enumerate(camps)]
         ratio_fn = self._ratio_fn(model)
         dicts, dropped = self._prune(dicts, ratio_fn, budget, contacts) if dicts else ([], [])
-        # renumber after pruning so names stay contiguous
+        # перенумеровываем после отсечения, чтобы имена шли подряд
         for i, d in enumerate(dicts):
             d["campaign_name"] = "c%02d%s" % (i + 1, d["campaign_name"][3:])
         if self.last_sim is not None and len(self.last_sim.per_campaign) == len(dicts):
@@ -2014,10 +2014,10 @@ class CampaignPacker:
             self.log.log("pack", **self.last_report)
         return dicts
 
-    # ------------------------------------------------------------------ coarse packing (extension)
+    # ------------------------------------------------------------------ грубая упаковка (расширение)
 
     def _coarse_items(self, model: Any, z: float) -> dict[tuple, list[tuple]]:
-        """(target, channel, arpu) -> [(from_tariff, n, sum_p, ratio_adj)] over cells with a known effect."""
+        """(target, channel, arpu) -> [(from_tariff, n, sum_p, ratio_adj)] по ячейкам с известным эффектом."""
         cells = getattr(self.dv, "cells", {}) or {}
         chans = list(getattr(self.dv, "channels", []) or [])
         out: dict[tuple, list[tuple]] = {}
@@ -2033,15 +2033,15 @@ class CampaignPacker:
                     try:
                         post = model.posterior((ck[0], ck[1], tg), ch)
                         r = float(post.mean) - z * float(post.sd)
-                    except Exception:  # noqa: BLE001 - unknown arm: skip
+                    except Exception:  # noqa: BLE001 - неизвестный arm: пропуск
                         continue
                     if math.isfinite(r) and r > 0.0:
                         out.setdefault((tg, ch, ck[1]), []).append((ck[0], n, sp, r))
         return out
 
     def _coarse_greedy(self, items: dict, budget: float, contacts: int, lm: float, lr: float) -> tuple[float, list]:
-        """Greedy campaign selection at cell granularity for shadow prices (lm money, lr reach per contact)."""
-        best: dict[tuple, float] = {}  # (from, arpu) -> best ratio already covered
+        """Жадный отбор кампаний на уровне ячеек для теневых цен (lm — деньги, lr — охват на контакт)."""
+        best: dict[tuple, float] = {}  # (from, arpu) -> лучший уже покрытый ratio
         camps: list[tuple] = []  # (target, channel, arpu, tariffs, n, cost, gain)
         b_left, c_left = float(budget), int(contacts)
         value = 0.0
@@ -2085,11 +2085,11 @@ class CampaignPacker:
         return value, camps
 
     def pack_coarse(self, model: Any, budget: float, contacts: int, z: Optional[float] = None) -> list[dict]:
-        """Cell-level greedy packing: campaigns (target, channel, arpu, from-tariff list) with no data/call filter.
+        """Жадная упаковка на уровне ячеек: кампании (target, channel, arpu, список исходных тарифов) без фильтра data/call.
 
-        Effects depend on (from, arpu, target, channel), so cell-wide campaigns cover whole cells with the same
-        ratio. Ratios are risk-adjusted (mean − z·sd); a small grid of shadow prices is swept and the best
-        value kept, then campaigns with non-positive simulated marginal net (posterior means) are pruned.
+        Эффекты зависят от (from, arpu, target, channel), поэтому кампании на всю ячейку покрывают целые ячейки с одинаковым
+        ratio. Ratio скорректированы на риск (mean − z·sd); перебирается небольшая сетка теневых цен и сохраняется лучшее
+        значение, затем отсекаются кампании с неположительным симулированным предельным net (апостериорные средние).
         """
         self.last_sim = None
         self._size_cache = {}
@@ -2129,7 +2129,7 @@ class CampaignPacker:
         return dicts
 
     def empty_campaign(self) -> dict:
-        """Valid push campaign whose filters match 0 customers (no-op fallback)."""
+        """Валидная push-кампания, фильтры которой совпадают с 0 клиентов (пустой запасной вариант)."""
         codes = list(getattr(self.dv, "tariff_codes", []) or [])
         chans = list(getattr(self.dv, "channels", []) or [])
         channel = "push" if "push" in chans or not chans else chans[0]
@@ -2146,7 +2146,7 @@ class CampaignPacker:
                                 campaign_name="c01_empty_noop", filter_arpu_segment=a, filter_data_segment=d,
                                 filter_call_segment=cl, filter_current_tariff=t, target_tariff=others[0],
                                 channel=channel)
-        # every combo populated (or < 2 tariffs): smallest sub on push, target != from when possible
+        # все комбинации заняты (или < 2 тарифов): наименьшая подячейка на push, target != from по возможности
         if subs and len(codes) >= 2:
             sk = min(subs, key=lambda k: (subs[k].n, k))
             target = next(c for c in codes if c != sk[0])
@@ -2162,28 +2162,33 @@ class CampaignPacker:
 # ======================================================================
 # agent_src/m70_planner.py
 # ======================================================================
-# PilotPlanner: knowledge-gradient choice of the next pilot (arm x channel x size x pilot sub-cell).
+# PilotPlanner: выбор следующего пилота по градиенту знаний (knowledge gradient)
+# (рука x канал x размер x подъячейка пилота).
 #
-# Value of a cell V = sum over its sub-cells of the value of the option the allocator would pick:
-#   decision per sub = argmax over admissible options of  net_lcb - lm*cost - lr*n   (or nothing if <= 0),
-#   admissible       = net_lcb > 0 and p_pos >= p_min (push: p_min_push),
-#   realised value   = net_mean - lm*cost - lr*n of the chosen option (risk-neutral valuation of a risk-averse rule).
-# KG(arm, p, n) = E_y[V_after(y)] - V_before, y ~ N(m_p, sd_p^2 + s^2/n) integrated with Gauss-Hermite nodes;
-# the posterior after y comes from model.posterior_after (linear in y for the Gaussian model -> 2 calls per channel).
-# Total score = KG + immediate - n*cost_p*(1 + lm) - lr*n + confirm bonus, where immediate is the pilot's own
-# expected incremental lift over the final plan chosen after y (pilot customers keep max(pilot lift, final lift)),
-# integrated over the same Gauss-Hermite nodes, scaled by the expected share of not-yet-piloted customers.
-# Eligible targets mirror the allocator: top `top_targets_per_cell` per cell by max_c mean_c / mult_c (re-ranked
-# per node for the piloted arm). Pilot unit = a sub-cell (smallest with enough unused contacts).
-# Stop: best total <= 0, pilots/reserve/time exhausted. With zero pilots done a pilot is always returned.
+# Ценность ячейки V = сумма по её подъячейкам ценности варианта, который выбрал бы аллокатор:
+#   решение по подъячейке  = argmax по допустимым вариантам величины  net_lcb - lm*cost - lr*n   (или ничего, если <= 0),
+#   допустимый вариант     = net_lcb > 0 и p_pos >= p_min (push: p_min_push),
+#   реализованная ценность = net_mean - lm*cost - lr*n выбранного варианта (риск-нейтральная оценка
+#                            правила, избегающего риска).
+# KG(arm, p, n) = E_y[V_after(y)] - V_before, y ~ N(m_p, sd_p^2 + s^2/n), интегрирование по узлам Гаусса-Эрмита;
+# апостериор после y берётся из model.posterior_after: отдельные наклоны для y < 0 и y >= 0, 3 вызова на канал.
+# Итоговая оценка = KG + immediate - n*cost_p*(1 + lm) - lr*n + бонус подтверждения, где immediate — собственный
+# ожидаемый прирост лифта пилота сверх финального плана, выбранного после y (клиенты пилота сохраняют
+# max(лифт пилота, финальный лифт)), проинтегрированный по тем же узлам Гаусса-Эрмита и умноженный на ожидаемую
+# долю клиентов, ещё не охваченных пилотами.
+# Допустимые цели повторяют логику аллокатора: первые `top_targets_per_cell` в ячейке по max_c mean_c / mult_c
+# (с переранжированием в каждом узле для пилотируемой руки). Единица пилота — подъячейка (наименьшая с
+# достаточным числом неиспользованных контактов).
+# Остановка: лучшая итоговая оценка <= 0 либо исчерпаны пилоты/резерв/время. Если не проведено ни одного
+# пилота, пилот возвращается всегда.
 
 import math
 import time
 
 import numpy as np
 
-_KG_CONFIRM_FRAC = 0.25  # winner's-curse bonus = frac * min(net_total, sd_total) of the committed paid plan
-_KG_CONFIRM_BUDGET_FRAC = 0.10  # paid plan of an arm above this share of the initial budget needs confirmation
+_KG_CONFIRM_FRAC = 0.25  # бонус против «проклятия победителя» = frac * min(net_total, sd_total) зафиксированного платного плана
+_KG_CONFIRM_BUDGET_FRAC = 0.10  # платный план руки дороже этой доли исходного бюджета требует подтверждения
 _KG_CONFIRM_MIN_PILOTS = 2
 _KG_CONFIRM_SD_RATIO = 0.5
 _KG_MAX_FAILURES = 2
@@ -2191,7 +2196,7 @@ _KG_EPS = 1e-9
 
 
 def _kg_norm_ppf(p: float) -> float:
-    """Inverse standard normal CDF by bisection on norm_cdf (scalar, called once per planner)."""
+    """Обратная функция стандартного нормального распределения бисекцией по norm_cdf (скаляр, вызывается один раз на планировщик)."""
     if p <= 0.0:
         return -math.inf
     if p >= 1.0:
@@ -2208,34 +2213,34 @@ def _kg_norm_ppf(p: float) -> float:
 
 @dataclass
 class _KGCellEval:
-    """Current decision in one cell: per-target best option per sub + top-2 targets per sub."""
+    """Текущее решение в одной ячейке: лучший вариант каждой цели по подъячейкам + две лучшие цели по подъячейкам."""
 
     targets: list
     t_index: dict
-    n: np.ndarray  # (S,) contacts per sub
+    n: np.ndarray  # (S,) контактов в подъячейке
     sum_p: np.ndarray  # (S,)
     mean_p: np.ndarray  # (S,)
-    score: np.ndarray  # (T, S) best admissible score per target (-inf = none)
-    value: np.ndarray  # (T, S) mean-valued score of that option
-    gross_pc: np.ndarray  # (T, S) posterior-mean gross per contact of that option
-    chan: np.ndarray  # (T, S) channel index of that option
+    score: np.ndarray  # (T, S) лучшая допустимая оценка по цели (-inf = нет)
+    value: np.ndarray  # (T, S) оценка этого варианта по среднему
+    gross_pc: np.ndarray  # (T, S) апостериорное среднее валового дохода на контакт для этого варианта
+    chan: np.ndarray  # (T, S) индекс канала этого варианта
     net: np.ndarray  # (T, S)
     net_sd: np.ndarray  # (T, S)
-    cost: np.ndarray  # (T, S) money cost of that option
-    top1: np.ndarray  # (S,) chosen target index or -1
+    cost: np.ndarray  # (T, S) денежная стоимость этого варианта
+    top1: np.ndarray  # (S,) индекс выбранной цели или -1
     top1_score: np.ndarray
     top1_value: np.ndarray
-    top2_score: np.ndarray  # best score among targets != top1 (or -inf)
+    top2_score: np.ndarray  # лучшая оценка среди целей != top1 (или -inf)
     top2_value: np.ndarray
     v_before: float
-    proxy: np.ndarray = None  # (T,) allocator ranking score max_c mean_c / mult_c
-    rank: list = None  # target indices by (-proxy, index)
-    elig: np.ndarray = None  # (T,) bool: in the allocator's top_targets_per_cell
+    proxy: np.ndarray = None  # (T,) оценка ранжирования аллокатора max_c mean_c / mult_c
+    rank: list = None  # индексы целей, упорядоченные по (-proxy, index)
+    elig: np.ndarray = None  # (T,) bool: входит в top_targets_per_cell аллокатора
 
 
 @dataclass
 class _KGCand:
-    """One evaluated pilot candidate."""
+    """Один оценённый кандидат в пилоты."""
 
     arm: tuple
     channel: str
@@ -2251,7 +2256,7 @@ class _KGCand:
 
 
 class PilotPlanner:
-    """Knowledge-gradient pilot planner with reserves, per-arm caps and a winner's-curse confirm bonus."""
+    """Планировщик пилотов по градиенту знаний с резервами, лимитами на руку и бонусом подтверждения против «проклятия победителя»."""
 
     def __init__(self, cfg: Config, dv: Any, model: Any, allocator: Any) -> None:
         self.cfg = cfg
@@ -2262,7 +2267,7 @@ class PilotPlanner:
         self._pilots_per_arm: dict = {}
         self._used_subs: dict = {}
         self._failures: dict = {}
-        self._unavailable: set = set()  # (arm, sub-or-None)
+        self._unavailable: set = set()  # (рука, подъячейка или None)
         self._dead_arms: set = set()
         self._n_done = 0
         self._money_spent = 0.0
@@ -2277,7 +2282,7 @@ class PilotPlanner:
         for c in self._channels:
             try:
                 m = float(dv.mult(c))
-            except Exception:  # noqa: BLE001 - duck-typed DataView
+            except Exception:  # noqa: BLE001 - DataView с утиной типизацией
                 m = 1.0
             mults.append(m if math.isfinite(m) and m > 0 else 1.0)
         self._ch_mult = np.array(mults, dtype=float)
@@ -2303,10 +2308,10 @@ class PilotPlanner:
             )
             self._targets[ck] = list(dv.targets_for(ck))
 
-    # ------------------------------------------------------------------ public API
+    # ------------------------------------------------------------------ публичный API
 
     def set_weights(self, w: dict) -> None:
-        """LLM plausibility weights per arm (default 1.0); used only for candidate ranking."""
+        """Веса правдоподобия от LLM по рукам (по умолчанию 1.0); используются только для ранжирования кандидатов."""
         self._w = {}
         for k, v in (w or {}).items():
             try:
@@ -2318,21 +2323,21 @@ class PilotPlanner:
 
     @property
     def pilots_per_arm(self) -> dict:
-        """Pilots registered per arm (copy)."""
+        """Зарегистрированные пилоты по рукам (копия)."""
         return dict(self._pilots_per_arm)
 
     @property
     def used_subs(self) -> dict:
-        """Contacts consumed by registered pilots per sub-cell (copy)."""
+        """Контакты, израсходованные зарегистрированными пилотами, по подъячейкам (копия)."""
         return dict(self._used_subs)
 
     @property
     def unavailable(self) -> set:
-        """(arm, sub-or-None) pairs that failed in run_pilot (copy)."""
+        """Пары (рука, подъячейка или None), завершившиеся ошибкой в run_pilot (копия)."""
         return set(self._unavailable)
 
     def register_result(self, spec: PilotSpec, result: dict) -> None:
-        """Bookkeeping after env.run_pilot: usage/counters on success, unavailability on error."""
+        """Учёт после env.run_pilot: расход и счётчики при успехе, пометка недоступности при ошибке."""
         arm = tuple(spec.arm)
         if not isinstance(result, dict) or "error" in result:
             self._unavailable.add((arm, spec.sub))
@@ -2361,10 +2366,10 @@ class PilotPlanner:
         self.history.append({"arm": arm, "channel": spec.channel, "sub": spec.sub, "n": n, "cost": cost})
 
     def next_pilot(self, state: ExploreState) -> Optional[PilotSpec]:
-        """Best pilot by KG total score, or None to stop exploring."""
+        """Лучший пилот по итоговой оценке KG или None для остановки исследования."""
         t_start = time.monotonic()
-        # Calibration updates every arm, including arms without a new observation.
-        # Keep memoization within a decision only so all candidates use fresh evidence.
+        # Калибровка обновляет все руки, включая руки без нового наблюдения.
+        # Мемоизация действует только в пределах одного решения, чтобы все кандидаты использовали свежие данные.
         self._post_cache.clear()
         zero_done = self._zero_done(state)
         n_done = max(self._n_done, sum(int(v) for v in (state.pilots_per_arm or {}).values()))
@@ -2389,10 +2394,10 @@ class PilotPlanner:
             return self._stop("no_feasible_pilot")
         return self._spec(forced, "forced_first")
 
-    # ------------------------------------------------------------------ bookkeeping helpers
+    # ------------------------------------------------------------------ вспомогательные методы учёта
 
     def _zero_done(self, state: ExploreState) -> bool:
-        """True when no pilot has been run yet (by any account)."""
+        """True, если ещё не проведено ни одного пилота (по любому из счётчиков)."""
         if self._n_done > 0:
             return False
         if sum(int(v) for v in (state.pilots_per_arm or {}).values()) > 0:
@@ -2401,7 +2406,7 @@ class PilotPlanner:
             return False
         try:
             return len(self.model.observations) == 0
-        except Exception:  # noqa: BLE001 - duck-typed model
+        except Exception:  # noqa: BLE001 - модель с утиной типизацией
             return True
 
     def _arm_pilots(self, state: ExploreState, arm: tuple) -> int:
@@ -2422,13 +2427,13 @@ class PilotPlanner:
             if not (math.isfinite(lm) and math.isfinite(lr)):
                 return 0.0, 0.0
             return max(0.0, lm), max(0.0, lr)
-        except Exception:  # noqa: BLE001 - allocator failure must not stop planning
+        except Exception:  # noqa: BLE001 - сбой аллокатора не должен останавливать планирование
             return 0.0, 0.0
 
-    # ------------------------------------------------------------------ posteriors
+    # ------------------------------------------------------------------ апостериорные распределения
 
     def _post(self, arm: tuple, ch: str) -> tuple:
-        """(mean, sd) cached within one decision and invalidated on new arm observations."""
+        """(mean, sd), кэшируемые в пределах одного решения и сбрасываемые при новых наблюдениях по руке."""
         try:
             nobs = int(self.model.n_obs(arm))
         except Exception:  # noqa: BLE001
@@ -2449,34 +2454,42 @@ class PilotPlanner:
         self._post_cache[key] = (nobs, m, s)
         return m, s
 
-    def _after_linear(self, arm: tuple, p_ch: str, n: int, y_lo: float, y_hi: float) -> Optional[tuple]:
-        """Posterior after y on p_ch for each eval channel as (mean(y_lo), slope, sd) arrays, or None."""
+    def _after_piecewise(self, arm: tuple, p_ch: str, n: int) -> Optional[tuple]:
+        """Апостериор после y в виде массивов (mean(0), отрицательный наклон, положительный наклон, sd).
+
+        ArmModel дисконтирует положительные данные при масштабировании между каналами,
+        но переносит отрицательные без дисконта. Каждая половина аффинна с тем же
+        свободным членом и дисперсией, поэтому три пробы точно воспроизводят каждый
+        узел GH без подгонки одной прямой через излом в нуле.
+        """
         C = len(self._channels)
         a = np.zeros(C)
-        b = np.zeros(C)
+        b_neg = np.zeros(C)
+        b_pos = np.zeros(C)
         s = np.zeros(C)
-        dy = y_hi - y_lo
         for j, c in enumerate(self._channels):
             try:
-                lo = self.model.posterior_after(arm, p_ch, y_lo, n, c)
-                hi = self.model.posterior_after(arm, p_ch, y_hi, n, c)
-                lo_m, hi_m, sd = float(lo.mean), float(hi.mean), float(hi.sd)
+                lo = self.model.posterior_after(arm, p_ch, -1.0, n, c)
+                zero = self.model.posterior_after(arm, p_ch, 0.0, n, c)
+                hi = self.model.posterior_after(arm, p_ch, 1.0, n, c)
+                lo_m, zero_m, hi_m, sd = float(lo.mean), float(zero.mean), float(hi.mean), float(zero.sd)
             except Exception:  # noqa: BLE001
                 return None
-            if not (math.isfinite(lo_m) and math.isfinite(hi_m) and math.isfinite(sd)):
+            if not all(math.isfinite(v) for v in (lo_m, zero_m, hi_m, sd)):
                 return None
-            a[j] = lo_m
-            b[j] = (hi_m - lo_m) / dy if dy > 0 else 0.0
+            a[j] = zero_m
+            b_neg[j] = zero_m - lo_m
+            b_pos[j] = hi_m - zero_m
             s[j] = max(sd, 0.0)
-        return a, b, s
+        return a, b_neg, b_pos, s
 
-    # ------------------------------------------------------------------ option arithmetic
+    # ------------------------------------------------------------------ арифметика вариантов
 
     def _best_over_channels(self, M: np.ndarray, D: np.ndarray, n: np.ndarray, sp: np.ndarray,
                             lm: float, lr: float) -> tuple:
-        """Best admissible channel per (K, S) given posterior means M (K,C) and sds D (K,C).
+        """Лучший допустимый канал для каждой пары (K, S) при апостериорных средних M (K,C) и отклонениях D (K,C).
 
-        Returns score, value, chan, net, net_sd, cost, gross_pc arrays of shape (K, S).
+        Возвращает массивы score, value, chan, net, net_sd, cost, gross_pc формы (K, S).
         """
         cost_c = self._ch_cost[None, :, None]
         net = M[:, :, None] * sp[None, None, :] - cost_c * n[None, None, :]
@@ -2525,8 +2538,8 @@ class PilotPlanner:
                                np.zeros((T, S), dtype=int), z, z, z, np.full(S, -1), np.full(S, -np.inf), zs,
                                np.full(S, -np.inf), zs, 0.0, proxy, rank, elig)
         score, value, chan, net, nsd, cost, gross_pc = self._best_over_channels(M, D, n, sp, lm, lr)
-        score_e = np.where(elig[:, None], score, -np.inf)  # only allocator-eligible targets compete
-        order = np.argsort(-score_e, axis=0, kind="stable")  # ties -> lower target index
+        score_e = np.where(elig[:, None], score, -np.inf)  # конкурируют только цели, допустимые для аллокатора
+        order = np.argsort(-score_e, axis=0, kind="stable")  # при равенстве -> меньший индекс цели
         cols = np.arange(S)
         i1 = order[0]
         s1 = score_e[i1, cols]
@@ -2546,23 +2559,23 @@ class PilotPlanner:
 
     @staticmethod
     def _competitor(ev: _KGCellEval, idx: list) -> tuple:
-        """Best admissible option per sub among targets `idx`: (score, value, gross_pc) arrays of shape (S,)."""
+        """Лучший допустимый вариант по подъячейкам среди целей `idx`: массивы (score, value, gross_pc) формы (S,)."""
         S = len(ev.n)
         if not idx or S == 0:
             return np.full(S, -np.inf), np.zeros(S), np.full(S, np.nan)
         cols = np.arange(S)
         sub_sc = ev.score[idx]
-        j = np.argmax(sub_sc, axis=0)  # ties -> earlier in idx (allocator rank order)
+        j = np.argmax(sub_sc, axis=0)  # при равенстве -> более ранний в idx (порядок ранжирования аллокатора)
         s = sub_sc[j, cols]
         ok = np.isfinite(s) & (s > 0)
         rows = np.asarray(idx)[j]
         return (np.where(ok, s, -np.inf), np.where(ok, ev.value[rows, cols], 0.0),
                 np.where(ok, ev.gross_pc[rows, cols], np.nan))
 
-    # ------------------------------------------------------------------ candidates
+    # ------------------------------------------------------------------ кандидаты
 
     def _rank_arms(self, state: ExploreState) -> list:
-        """Top cfg.top_arms arms by sum_p_cell * max_c(mean + sd) * w, excluding capped/failed arms."""
+        """Первые cfg.top_arms рук по sum_p_cell * max_c(mean + sd) * w, без рук, достигших лимита или завершившихся ошибкой."""
         scored = []
         cap = int(self.cfg.max_pilots_per_arm)
         for ck in self._cells:
@@ -2574,14 +2587,14 @@ class PilotPlanner:
                     continue
                 ucb = max(sum(self._post(arm, c)) for c in self._channels) if self._channels else 0.0
                 w = self._w.get(arm, 1.0)
-                s = sp * ucb * (w if ucb >= 0 else 1.0 / w)  # a weight > 1 always promotes the arm
+                s = sp * ucb * (w if ucb >= 0 else 1.0 / w)  # вес > 1 всегда повышает приоритет руки
                 if math.isfinite(s):
                     scored.append((-s, arm))
         scored.sort()
         return [a for _, a in scored[: max(0, int(self.cfg.top_arms))]]
 
     def _limits(self, state: ExploreState, relax: bool) -> tuple:
-        """(money_cap, reach_cap) available for the next pilot."""
+        """(money_cap, reach_cap), доступные для следующего пилота."""
         money = max(0.0, float(state.remaining_budget))
         reach = max(0, int(state.remaining_contacts))
         if relax:
@@ -2593,7 +2606,7 @@ class PilotPlanner:
         return max(0.0, min(money, m_res)), max(0, min(reach, r_res))
 
     def _sub_avail(self, state: ExploreState, arm: tuple, ck: tuple) -> list:
-        """[(avail, key, sub_index, sub)] of sub-cells still usable for this arm."""
+        """[(avail, key, sub_index, sub)] подъячеек, ещё пригодных для этой руки."""
         out = []
         for si, sc in enumerate(self._cell_subs[ck]):
             if (arm, sc.key) in self._unavailable:
@@ -2603,7 +2616,7 @@ class PilotPlanner:
 
     def _pilot_sub(self, state: ExploreState, arm: tuple, ck: tuple, n: int,
                    avail: Optional[list] = None) -> Optional[tuple]:
-        """(sub_key, filters, sub_index) of the smallest sub-cell with >= n unused contacts, or None."""
+        """(sub_key, filters, sub_index) наименьшей подъячейки с >= n неиспользованными контактами или None."""
         best = None
         for av, key, si, sc in (avail if avail is not None else self._sub_avail(state, arm, ck)):
             if av >= n and (best is None or (av, key) < best[0]):
@@ -2622,9 +2635,9 @@ class PilotPlanner:
         return sorted(sizes)
 
     def _evaluate(self, state: ExploreState, lm: float, lr: float, relax: bool, t_start: float) -> list:
-        """Evaluate the fixed top_arms shortlist; CPU speed must not change the candidates.
+        """Оценивает фиксированный шорт-лист top_arms; скорость CPU не должна влиять на набор кандидатов.
 
-        The orchestrator still enforces the overall run deadline between pilot decisions.
+        Общий дедлайн запуска по-прежнему контролирует оркестратор между решениями о пилотах.
         """
         money_cap, reach_cap = self._limits(state, relax)
         if reach_cap < int(self.cfg.min_pilot):
@@ -2692,21 +2705,22 @@ class PilotPlanner:
     def _kg(self, arm: tuple, ev: _KGCellEval, t: int, pj: int, p_ch: str, n: int, m_p: float, sd_p: float,
             s2: float, comp_in: tuple, comp_out: tuple, thr: tuple, si: int, fresh: float,
             lm: float, lr: float) -> Optional[tuple]:
-        """(KG, immediate) of a pilot of size n on channel p_ch in sub si; KG = E_y[V_after] - V_before.
+        """(KG, immediate) пилота размера n на канале p_ch в sub si; KG = E_y[V_after] - V_before.
 
-        comp_in / comp_out: best competitor per sub when the arm is / is not in the allocator's top-k targets;
-        thr = (proxy, index) of the k-th other target (the arm is eligible iff it ranks above it).
+        comp_in / comp_out: лучший конкурент на sub, когда arm входит / не входит в top-k targets allocator;
+        thr = (proxy, index) k-го другого target (arm допустим тогда и только тогда, когда ранжируется выше него).
         """
         pilot_mp = float(ev.mean_p[si])
         pred_sd = math.sqrt(max(sd_p, 0.0) ** 2 + s2 / max(n, 1))
         if not math.isfinite(pred_sd) or pred_sd <= 0:
             return 0.0, n * fresh * m_p * pilot_mp
-        lin = self._after_linear(arm, p_ch, n, m_p - pred_sd, m_p + pred_sd)
+        lin = self._after_piecewise(arm, p_ch, n)
         if lin is None:
             return None
-        a, b, sd_after = lin
+        a, b_neg, b_pos, sd_after = lin
         ys = m_p + pred_sd * self._gh_x  # (G,)
-        M = a[None, :] + b[None, :] * (ys[:, None] - (m_p - pred_sd))  # (G, C)
+        b = np.where(ys[:, None] < 0.0, b_neg[None, :], b_pos[None, :])
+        M = a[None, :] + b * ys[:, None]  # (G, C)
         D = np.broadcast_to(sd_after[None, :], M.shape)
         sc, val, _, _, _, _, gpc = self._best_over_channels(M, D, ev.n, ev.sum_p, lm, lr)  # (G, S)
         prox = (M / self._ch_mult[None, :]).max(axis=1)  # (G,)
@@ -2721,7 +2735,7 @@ class PilotPlanner:
         comp_b = comp_in if bool(ev.elig[t]) else comp_out
         wins_b = bool(ev.elig[t]) & (ev.score[t] > 0) & (ev.score[t] > comp_b[0])
         v_before = float(np.where(wins_b, ev.value[t], comp_b[1]).sum())
-        # immediate: pilot customers keep max(pilot lift, final lift of the plan chosen after y)
+        # immediate: клиенты пилота сохраняют max(pilot lift, final lift плана, выбранного после y)
         final_pc = np.where(wins[:, si], gpc[:, si], o_gpc[:, si])  # (G,) nan = sub not deployed
         pilot_pc = M[:, pj] * pilot_mp
         inc = np.where(np.isfinite(final_pc), np.maximum(0.0, pilot_pc - np.nan_to_num(final_pc)), pilot_pc)
@@ -2730,7 +2744,7 @@ class PilotPlanner:
 
     def _confirm_info(self, state: ExploreState, arm: tuple, ev: _KGCellEval, t: int,
                       init_budget: float) -> Optional[tuple]:
-        """(bonus_amount, deployment_channel) if the arm's committed paid plan needs confirmation."""
+        """(bonus_amount, deployment_channel), если зафиксированный платный план руки требует подтверждения."""
         if len(ev.n) == 0:
             return None
         mine = ev.top1 == t
@@ -2752,7 +2766,7 @@ class PilotPlanner:
         dom = max(sorted(ch_cost), key=lambda k: ch_cost[k])
         return _KG_CONFIRM_FRAC * min(net_total, sd_total), self._channels[dom]
 
-    # ------------------------------------------------------------------ selection
+    # ------------------------------------------------------------------ выбор
 
     @staticmethod
     def _cand_key(c: _KGCand) -> tuple:
@@ -2767,14 +2781,14 @@ class PilotPlanner:
         return best
 
     def _pick_cheapest(self, cands: list) -> Optional[_KGCand]:
-        """Informative first (kg > 0), then cheapest money, then best total."""
+        """Сначала информативные (kg > 0), затем самые дешёвые по деньгам, затем с лучшей итоговой оценкой."""
         if not cands:
             return None
         return min(cands, key=lambda c: (0 if c.kg > _KG_EPS else 1, round(c.cost_money, 6), -c.total,
                                          self._cand_key(c)))
 
     def _fallback_candidate(self, state: ExploreState) -> Optional[_KGCand]:
-        """Minimal feasible pilot (largest cell, first target, cheapest affordable channel)."""
+        """Минимальный допустимый пилот (крупнейшая ячейка, первая цель, самый дешёвый доступный канал)."""
         money, reach = self._limits(state, relax=True)
         n = int(self.cfg.min_pilot)
         if reach < n or not self._channels:
@@ -2821,13 +2835,13 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
 # ---------------------------------------------------------------------------
-# Constants and plain validation rules (shared by output_validator and cache path)
+# Константы и простые правила валидации (общие для output_validator и пути через кэш)
 # ---------------------------------------------------------------------------
 
 _LLM_PLAUS_WEIGHT: dict[str, float] = {"low": 0.8, "mid": 1.0, "high": 1.2}
-_LLM_VETO_P_MAX = 0.9  # only campaigns with P(net>0) below this may be vetoed
+_LLM_VETO_P_MAX = 0.9  # вето возможно только для кампаний с P(net>0) ниже этого порога
 _LLM_REQUEST_LIMIT = 4
-_LLM_TOOL_CALLS_LIMIT = 64  # local read-only tools; models batch one call per arm in a single request
+_LLM_TOOL_CALLS_LIMIT = 64  # локальные read-only инструменты; модели группируют по одному вызову на arm в одном запросе
 _LLM_OUTPUT_RETRIES = 1
 _LLM_REASON_MAX = 200
 
@@ -2852,14 +2866,14 @@ _LLM_REVIEWER_INSTRUCTIONS = (
 
 
 def _llm_item_get(item: Any, key: str, default: Any = None) -> Any:
-    """Read a field from a pydantic model or a dict."""
+    """Читает поле из pydantic-модели или dict."""
     if isinstance(item, dict):
         return item.get(key, default)
     return getattr(item, key, default)
 
 
 def _llm_validate_assessment(items: list, batch_ids: list[str]) -> list[str]:
-    """Plain rules for HypothesisAssessment.items; returns error messages (empty = valid)."""
+    """Простые правила для HypothesisAssessment.items; возвращает сообщения об ошибках (пусто = валидно)."""
     errors: list[str] = []
     allowed = set(batch_ids)
     seen: set[str] = set()
@@ -2890,7 +2904,7 @@ def _llm_validate_assessment(items: list, batch_ids: list[str]) -> list[str]:
 
 
 def _llm_validate_review(veto: list, campaign_names: list[str], p_pos: dict[str, float]) -> list[str]:
-    """Plain rules for PlanReview.veto; returns error messages (empty = valid)."""
+    """Простые правила для PlanReview.veto; возвращает сообщения об ошибках (пусто = валидно)."""
     errors: list[str] = []
     names = set(campaign_names)
     if not isinstance(veto, list):
@@ -2908,13 +2922,13 @@ def _llm_validate_review(veto: list, campaign_names: list[str], p_pos: dict[str,
 
 
 def _llm_evidence_name(ev: dict) -> Optional[str]:
-    """Campaign name of an evidence row ('name' or 'campaign_name')."""
+    """Имя кампании из строки evidence ('name' или 'campaign_name')."""
     n = ev.get("name", ev.get("campaign_name"))
     return None if n is None else str(n)
 
 
 def _llm_evidence_ppos(ev: dict) -> float:
-    """p_pos of an evidence row; missing/invalid -> 1.0 (not vetoable)."""
+    """p_pos строки evidence; отсутствует/некорректно -> 1.0 (вето невозможно)."""
     try:
         v = float(ev.get("p_pos", 1.0))
     except (TypeError, ValueError):
@@ -2923,23 +2937,23 @@ def _llm_evidence_ppos(ev: dict) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Deps (read-only snapshots for tools)
+# Deps (read-only снимки данных для инструментов)
 # ---------------------------------------------------------------------------
 
 
 @dataclass
 class AnalystDeps:
-    """Read-only snapshot for HypothesisAnalyst tools."""
+    """Read-only снимок для инструментов HypothesisAnalyst."""
 
     batch_ids: list[str]
-    items: dict[str, dict]  # arm_id -> item
+    items: dict[str, dict]  # arm_id -> элемент
     tariffs: dict[str, dict]
-    cells: dict[str, dict] = field(default_factory=dict)  # "from|seg" -> aggregates
+    cells: dict[str, dict] = field(default_factory=dict)  # "from|seg" -> агрегаты
 
 
 @dataclass
 class ReviewDeps:
-    """Read-only snapshot for RiskReviewer tools."""
+    """Read-only снимок для инструментов RiskReviewer."""
 
     campaign_names: list[str]
     campaigns: dict[str, dict]
@@ -2949,7 +2963,7 @@ class ReviewDeps:
 
 
 def _llm_cells_from_items(items: list[dict]) -> dict[str, dict]:
-    """Aggregate batch items per cell 'from|seg'."""
+    """Агрегирует элементы батча по ячейкам 'from|seg'."""
     cells: dict[str, dict] = {}
     for it in items:
         try:
@@ -2968,7 +2982,7 @@ def _llm_cells_from_items(items: list[dict]) -> dict[str, dict]:
 
 
 def _llm_tariff_price(t: dict) -> Optional[float]:
-    """Monthly price from a tariff row, if present."""
+    """Месячная цена из строки тарифа, если есть."""
     for k in ("price_tariff", "price", "monthly_fee"):
         if k in t:
             try:
@@ -2979,24 +2993,24 @@ def _llm_tariff_price(t: dict) -> Optional[float]:
 
 
 # ---------------------------------------------------------------------------
-# Lazy Pydantic AI kit
+# Ленивый набор Pydantic AI
 # ---------------------------------------------------------------------------
 
 
 def _llm_annotate(fn: Callable, ann: dict) -> Callable:
-    """Attach real (non-string) annotations so pydantic-ai can resolve them lazily."""
+    """Проставляет реальные (не строковые) аннотации, чтобы pydantic-ai мог лениво их разрешить."""
     fn.__annotations__ = dict(ann)
     return fn
 
 
 def _llm_build_kit() -> dict:
-    """Import pydantic / pydantic_ai and build output models + agent factories. Raises ImportError."""
+    """Импортирует pydantic / pydantic_ai и строит модели вывода + фабрики агентов. Бросает ImportError."""
     from typing import Literal
 
-    os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")  # no console output from the library
+    os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")  # без вывода библиотеки в консоль
     from pydantic import BaseModel, Field
     from pydantic_ai import Agent, ModelRetry, RunContext
-    from pydantic_ai.exceptions import (  # noqa: F401  (documented failure types)
+    from pydantic_ai.exceptions import (  # noqa: F401  (документированные типы ошибок)
         AgentRunError,
         ModelHTTPError,
         UnexpectedModelBehavior,
@@ -3087,7 +3101,7 @@ def _llm_build_kit() -> dict:
             try:
                 names = [c for c in campaign_ids if c in ctx.deps.campaigns]
                 return json.loads(canonical_json({"without": names, **dict(ctx.deps.what_if(names))}))
-            except Exception as exc:  # what-if must never crash the run
+            except Exception as exc:  # what-if никогда не должен ронять запуск
                 return {"error": type(exc).__name__}
 
         agent.tool(_llm_annotate(get_campaign_evidence, {"ctx": RCtx, "campaign_id": str, "return": dict}))
@@ -3117,10 +3131,10 @@ def _llm_build_kit() -> dict:
 
 
 class LLMLayer:
-    """Optional LLM advisors. Modes: off | advise (log only) | decide (apply). Never raises on LLM failure."""
+    """Опциональные LLM-советники. Режимы: off | advise (только лог) | decide (применять). Никогда не бросает исключений при сбое LLM."""
 
     def __init__(self, cfg: Config, mode: str, cache_path: str, log: RunLog, model: Any = None):
-        """`model` (optional extension): a pydantic-ai Model instance to use instead of OpenAI (tests)."""
+        """`model` (опциональное расширение): экземпляр pydantic-ai Model вместо OpenAI (для тестов)."""
         self.cfg = cfg
         self.mode = mode if mode in LLM_MODES else "off"
         self.cache_path = cache_path
@@ -3130,15 +3144,15 @@ class LLMLayer:
         self._kit_failed = False
         self._model: Any = None
         self._cache: Optional[dict] = None
-        self._spent = 0.0  # seconds of LLM wall time consumed
+        self._spent = 0.0  # потрачено секунд wall time на LLM
 
-    # ---- infrastructure -------------------------------------------------
+    # ---- инфраструктура -------------------------------------------------
 
     def _remaining(self) -> float:
         return float(self.cfg.llm_budget_s) - self._spent
 
     def _get_kit(self) -> Optional[dict]:
-        """Lazily build the pydantic-ai kit; ImportError (or any build failure) -> None (off behaviour)."""
+        """Лениво строит набор pydantic-ai; ImportError (или любой сбой сборки) -> None (поведение как off)."""
         if self._kit is None and not self._kit_failed:
             try:
                 self._kit = _llm_build_kit()
@@ -3151,7 +3165,7 @@ class LLMLayer:
         return self._kit
 
     def _get_model(self) -> Any:
-        """OpenAI Responses model (key from env only) or the injected test model."""
+        """Модель OpenAI Responses (ключ только из env) или внедрённая тестовая модель."""
         if self._model_override is not None:
             return self._model_override
         if self._model is None:
@@ -3193,7 +3207,7 @@ class LLMLayer:
         return sha256_text(f"{self.cfg.schema_version}{agent_name}{self.cfg.llm_model}{canonical_json(payload)}")
 
     def _record(self, sink: Optional[list] = None, **fields: Any) -> None:
-        """Append an LLM record to the run log, or to `sink` (flushed later in deterministic order)."""
+        """Добавляет LLM-запись в лог запуска или в `sink` (сбрасывается позже в детерминированном порядке)."""
         rec = json.loads(canonical_json(fields))
         if sink is not None:
             sink.append(rec)
@@ -3203,7 +3217,7 @@ class LLMLayer:
                                                                       "latency_s", "mode")})
 
     async def _run_agent(self, agent: Any, prompt: str, deps: Any) -> tuple[Any, Optional[str], float]:
-        """Run one agent call with per-call timeout; returns (output|None, error|None, latency)."""
+        """Выполняет один вызов агента с таймаутом на вызов; возвращает (output|None, error|None, latency)."""
         t0 = time.monotonic()
         timeout = min(float(self.cfg.llm_call_timeout_s), self._remaining())
         if timeout <= 0:
@@ -3221,7 +3235,7 @@ class LLMLayer:
     # ---- HypothesisAnalyst ------------------------------------------------
 
     async def assess_hypotheses(self, batches: dict[str, list[dict]], tariffs: dict[str, dict]) -> dict[ArmKey, float]:
-        """Plausibility weights {0.8,1.0,1.2} per arm; neutral 1.0 on off/advise/error/timeout."""
+        """Веса правдоподобия {0.8,1.0,1.2} на arm; нейтральный 1.0 при off/advise/error/timeout."""
         neutral: dict[ArmKey, float] = {}
         for key in sorted(batches):
             for it in batches[key]:
@@ -3238,7 +3252,7 @@ class LLMLayer:
         sinks: dict[str, list] = {k: [] for k in keys}
         try:
             results = await asyncio.gather(*(self._assess_batch(k, batches[k], tariffs, sinks[k]) for k in keys))
-        finally:  # account time and flush records in sorted batch order even on outer cancellation
+        finally:  # учитываем время и сбрасываем записи в порядке батчей даже при внешней отмене
             self._spent += time.monotonic() - t0
             for k in keys:
                 for rec in sinks[k]:
@@ -3261,7 +3275,7 @@ class LLMLayer:
 
     async def _assess_batch(self, batch_key: str, items: list[dict], tariffs: dict[str, dict],
                             sink: Optional[list] = None) -> dict[str, str]:
-        """One batch -> {arm_id: plausibility}; {} on any failure. Records go to `sink` when given."""
+        """Один батч -> {arm_id: plausibility}; {} при любом сбое. Записи идут в `sink`, если он передан."""
         items_by_id: dict[str, dict] = {}
         for it in items:
             aid = str(it.get("arm_id"))
@@ -3323,7 +3337,7 @@ class LLMLayer:
 
     async def review_plan(self, campaigns: list[dict], evidence: list[dict],
                           what_if: Callable[[list[str]], dict]) -> ReviewOutcome:
-        """Optional veto of weak campaigns. applied=True only in decide mode with a valid non-empty veto."""
+        """Опциональное вето слабых кампаний. applied=True только в режиме decide с валидным непустым veto."""
         names = [str(c.get("campaign_name")) for c in campaigns if c.get("campaign_name") is not None]
         if self.mode == "off" or not names:
             self._record(agent="RiskReviewer", source="off", mode=self.mode, ok=False)
@@ -3402,7 +3416,7 @@ import numpy as np
 import pandas as pd
 
 # ---------------------------------------------------------------------------
-# Guardrails: final safety net on the campaign list returned by the agent.
+# Guardrails: финальная страховка для списка кампаний, возвращаемого агентом.
 # ---------------------------------------------------------------------------
 
 _GR_SEGMENT_ALLOWED: dict[str, tuple[str, ...]] = {
@@ -3411,11 +3425,11 @@ _GR_SEGMENT_ALLOWED: dict[str, tuple[str, ...]] = {
     "filter_call_segment": CALL_SEGMENTS,
 }
 _GR_HARD_MAX_CAMPAIGNS = 10  # scoring_core.MAX_CAMPAIGNS
-_GR_MAX_SCAN = 1000  # max raw items consumed from the input iterable (guards against endless generators)
+_GR_MAX_SCAN = 1000  # максимум элементов, читаемых из входного iterable (защита от бесконечных генераторов)
 
 
 def _gr_is_missing(v: Any) -> bool:
-    """True for None, NaN-like floats, pandas NA and blank strings."""
+    """True для None, NaN-подобных float, pandas NA и пустых строк."""
     if v is None:
         return True
     if isinstance(v, str):
@@ -3427,7 +3441,7 @@ def _gr_is_missing(v: Any) -> bool:
 
 
 def _gr_str(v: Any) -> Optional[str]:
-    """Stripped string or None for missing / unconvertible values."""
+    """Обрезанная строка или None для отсутствующих / неконвертируемых значений."""
     if _gr_is_missing(v):
         return None
     if isinstance(v, (list, tuple, set, frozenset, np.ndarray)):
@@ -3436,18 +3450,18 @@ def _gr_str(v: Any) -> Optional[str]:
         return None
     try:
         s = str(v).strip()
-    except Exception:  # noqa: BLE001 - arbitrary garbage objects
+    except Exception:  # noqa: BLE001 - произвольные мусорные объекты
         return None
     return s or None
 
 
 def _gr_zero_ratio(current_tariff: str, arpu_segment: str, target: str, channel: str) -> float:
-    """Ratio function with zero lift: simulation then measures only cost/contacts."""
+    """Функция ratio с нулевым лифтом: симуляция измеряет только cost/contacts."""
     return 0.0
 
 
 class Guardrails:
-    """Coerce, sanitize and limit-check the final campaign list. Never raises."""
+    """Приводит, очищает и проверяет лимиты итогового списка кампаний. Никогда не бросает исключений."""
 
     def __init__(self, cfg: Config, dv: Any, sim: Any, log: Optional[RunLog] = None):
         self.cfg = cfg
@@ -3462,14 +3476,14 @@ class Guardrails:
         self._channels: list[str] = chans
         self._channel_ci: dict[str, str] = {c.lower(): c for c in chans}
 
-    # ------------------------------------------------------------------ public
+    # ------------------------------------------------------------------ публичное
 
     def validate(self, campaigns: Any, budget: float, contacts: int) -> list[dict]:
-        """Return a valid, deduped, limit-respecting list of 1..max_campaigns campaigns."""
+        """Возвращает валидный, дедуплицированный, укладывающийся в лимиты список из 1..max_campaigns кампаний."""
         self.issues = []
         try:
             out = self._validate(campaigns, budget, contacts)
-        except Exception as exc:  # noqa: BLE001 - guardrail must never raise
+        except Exception as exc:  # noqa: BLE001 - guardrail никогда не должен падать
             self._issue("validate_error", error=repr(exc)[:300])
             out = []
         if not out:
@@ -3483,7 +3497,7 @@ class Guardrails:
         return out
 
     def empty_campaign(self) -> Optional[dict]:
-        """Valid push campaign whose filters match (ideally) zero customers; None if impossible."""
+        """Валидная push-кампания, фильтры которой (в идеале) не охватывают ни одного абонента; None, если невозможно."""
         if not self._tariffs or not self._channels:
             return None
         channel = "push" if "push" in self._channels else self._channels[0]
@@ -3504,7 +3518,7 @@ class Guardrails:
                     break
             if best:
                 break
-        if best is None:  # every combo populated: use the smallest sub (best effort)
+        if best is None:  # все комбинации заполнены: берём наименьшую подгруппу (по возможности)
             sizes = sorted(((int(getattr(s, "n", 0)), k) for k, s in subs.items()), key=lambda t: (t[0], t[1]))
             best = sizes[0][1] if sizes else (self._tariffs[0], ARPU_SEGMENTS[0], DATA_SEGMENTS[0], CALL_SEGMENTS[0])
         frm = best[0]
@@ -3520,7 +3534,7 @@ class Guardrails:
             channel=channel,
         )
 
-    # ---------------------------------------------------------------- internal
+    # ---------------------------------------------------------------- внутреннее
 
     def _issue(self, kind: str, **fields: Any) -> None:
         msg = kind + ("" if not fields else " " + ", ".join(f"{k}={v}" for k, v in sorted(fields.items())))
@@ -3584,7 +3598,7 @@ class Guardrails:
         return out
 
     def _limits(self, budget: Any, contacts: Any) -> Optional[tuple[float, int]]:
-        """Finite, non-negative (budget, contacts); None = unusable limits (skip the check, scoring caps anyway)."""
+        """Конечные неотрицательные (budget, contacts); None = непригодные лимиты (проверка пропускается, скоринг всё равно ограничит)."""
         try:
             b, k = float(budget), float(contacts)
         except (TypeError, ValueError):
@@ -3598,7 +3612,7 @@ class Guardrails:
         return b, int(min(k, float(1 << 62)))
 
     def _log_overlaps(self, cs: list[dict]) -> None:
-        """Log (do not drop) campaigns whose audiences intersect: scoring allows it but pays twice."""
+        """Логирует (не удаляет) кампании с пересекающейся аудиторией: скоринг это допускает, но платим дважды."""
         seg_fn = getattr(self.sim, "segment", None)
         if seg_fn is None or len(cs) < 2:
             return
@@ -3615,7 +3629,7 @@ class Guardrails:
             self._issue("overlap_check_error", error=repr(exc)[:200])
 
     def _coerce(self, i: int, raw: Any) -> Optional[dict]:
-        """Sanitize one campaign; None when it must be dropped."""
+        """Очищает одну кампанию; None, если её нужно отбросить."""
         if dataclasses.is_dataclass(raw) and not isinstance(raw, type):
             raw = dataclasses.asdict(raw)
         elif isinstance(raw, pd.Series):
@@ -3662,7 +3676,7 @@ class Guardrails:
         )
 
     def _from_list(self, i: int, value: Any, target: str) -> Optional[list[str]]:
-        """Known source tariffs (target removed, natural order); None = drop campaign."""
+        """Известные исходные тарифы (без target, в естественном порядке); None = отбросить кампанию."""
         if isinstance(value, (list, tuple, set, frozenset, np.ndarray)):
             parts = [_gr_str(v) for v in list(value)]
             given = True
@@ -3671,7 +3685,7 @@ class Guardrails:
             given = s is not None
             parts = [p.strip() for p in s.split(";")] if s is not None else []
         if not given:
-            # No filter would also hit customers already on the target tariff: narrow explicitly.
+            # Без фильтра попадут и абоненты, уже сидящие на целевом тарифе: сужаем явно.
             chosen = {t for t in self._tariffs if t != target}
         else:
             chosen = set()
@@ -3718,7 +3732,7 @@ class Guardrails:
             return None
 
     def _enforce_limits(self, cs: list[dict], budget: float, contacts: int) -> list[dict]:
-        """Drop the last reach/money-capped campaign until the plan fits (keeps >= 1 campaign)."""
+        """Отбрасывает последнюю кампанию, упёршуюся в охват/бюджет, пока план не уложится (оставляет >= 1 кампании)."""
         if self.sim is None or not cs:
             return cs
         cs = list(cs)
@@ -3741,14 +3755,14 @@ class Guardrails:
 
 
 # ---------------------------------------------------------------------------
-# Reporter: human-readable markdown run report (best effort).
+# Reporter: читаемый markdown-отчёт о запуске (по возможности).
 # ---------------------------------------------------------------------------
 
 _GR_Z95 = 1.96
 
 
 def _gr_rep_fmt(v: Any, nd: int = 4) -> str:
-    """Compact, markdown-safe cell text."""
+    """Компактный, безопасный для markdown текст ячейки."""
     if v is None:
         return "—"
     if isinstance(v, (bool, np.bool_)):
@@ -3767,7 +3781,7 @@ def _gr_rep_fmt(v: Any, nd: int = 4) -> str:
     if isinstance(v, dict):
         try:
             txt = canonical_json(v)
-        except Exception:  # noqa: BLE001 - non-serializable values
+        except Exception:  # noqa: BLE001 - несериализуемые значения
             txt = str(v)
         return txt[:200].replace("|", "/").replace("\n", " ")
     s = str(v).replace("|", "/").replace("\n", " ").strip()
@@ -3783,7 +3797,7 @@ def _gr_rep_num(v: Any) -> Optional[float]:
 
 
 def _gr_rep_first(d: dict, keys: tuple[str, ...]) -> Optional[float]:
-    """First finite numeric value among ``keys`` (skips missing / None / NaN entries)."""
+    """Первое конечное числовое значение среди ``keys`` (пропускает отсутствующие / None / NaN)."""
     for k in keys:
         f = _gr_rep_num(d.get(k))
         if f is not None:
@@ -3800,7 +3814,7 @@ def _gr_rep_table(rows: list[dict], cols: list[str], headers: Optional[list[str]
 
 
 class Reporter:
-    """Writes agent_report.md: pilots with CI, final plan, LLM decisions, timings. Never raises."""
+    """Пишет agent_report.md: пилоты с CI, итоговый план, решения LLM, тайминги. Никогда не бросает исключений."""
 
     _PILOT_COLS = ("pilot_index", "index", "arm", "arm_id", "target_tariff", "channel", "sub", "filters",
                    "n_req", "n", "n_customers", "cost", "y", "observed_lift_ratio", "score", "reason", "error")
@@ -3813,7 +3827,7 @@ class Reporter:
         self.path = path
 
     def write(self, log: RunLog, campaigns: list[dict], extra: dict) -> None:
-        """Render and write markdown; OSError (and rendering errors) are swallowed."""
+        """Рендерит и записывает markdown; OSError (и ошибки рендеринга) подавляются."""
         try:
             text = self.render(log, campaigns, extra)
         except Exception as exc:  # noqa: BLE001
@@ -3824,10 +3838,10 @@ class Reporter:
         except (OSError, TypeError, ValueError):
             return
 
-    # ------------------------------------------------------------------ render
+    # ------------------------------------------------------------------ рендеринг
 
     def render(self, log: Optional[RunLog], campaigns: Any, extra: Any) -> str:
-        """Build the markdown text."""
+        """Собирает markdown-текст."""
         extra = extra if isinstance(extra, dict) else {}
         lines: list[str] = ["# Agent report", ""]
         mode = extra.get("llm_mode")
@@ -3945,7 +3959,7 @@ class Reporter:
         return out
 
     def _details_section(self, extra: dict) -> list[str]:
-        """Any other extra keys (e.g. final_sim, allocate, review, stages, explore), sorted by key."""
+        """Любые прочие дополнительные ключи (например final_sim, allocate, review, stages, explore), отсортированные по ключу."""
         keys = sorted((k for k in extra if str(k) not in self._EXTRA_RENDERED), key=str)
         if not keys:
             return []
@@ -3981,7 +3995,7 @@ from typing import Any, Callable, Optional
 
 import pandas as pd
 
-# Orchestrator: async pipeline research -> hypotheses -> explore -> allocate -> review -> finalize.
+# Этапы оркестратора: research -> hypotheses -> explore -> allocate -> review -> finalize.
 # Оркестратор: асинхронный конвейер этапов с общим дедлайном и безопасными fallback-ами.
 
 _ORC_COMPONENT_NAMES: tuple[str, ...] = (
@@ -3999,18 +4013,18 @@ _ORC_COMPONENT_NAMES: tuple[str, ...] = (
     "Reporter",
 )
 _ORC_MAX_CONSECUTIVE_FAILURES = 3
-_ORC_CALIBRATE_PRIOR = True  # re-fit prior bias / extra variance from pilots after every result
-_ORC_VERIFY_PILOTS = 8  # pilots reserved for verifying the arms the coarse plan would deploy
-_ORC_VERIFY_MONEY_FRAC = 0.1  # pilot on the deploy channel only if it costs <= this share of the expected loss
-_ORC_COARSE_Z_FRAC = 0.5  # coarse packing ranks arms by mean − 0.5·z_risk·sd
+_ORC_CALIBRATE_PRIOR = True  # переоценка смещения априора / дополнительной дисперсии по пилотам после каждого результата
+_ORC_VERIFY_PILOTS = 8  # пилоты, зарезервированные для проверки рук, которые развернул бы грубый план
+_ORC_VERIFY_MONEY_FRAC = 0.1  # пилот в канале развёртывания, только если он стоит <= этой доли ожидаемых потерь
+_ORC_COARSE_Z_FRAC = 0.5  # грубая упаковка ранжирует руки по mean − 0.5·z_risk·sd
 _ORC_FILTER_KEYS = ("filter_arpu_segment", "filter_data_segment", "filter_call_segment", "filter_current_tariff")
 
 
 def _orc_base_dir() -> str:
-    """Directory holding agent.py (repo root when running from the agent_src package)."""
+    """Каталог с agent.py (корень репозитория при запуске из пакета agent_src)."""
     try:
         d = os.path.dirname(os.path.abspath(__file__))
-    except NameError:  # pragma: no cover - exotic loaders
+    except NameError:  # pragma: no cover - экзотические загрузчики
         return os.getcwd()
     if os.path.basename(d) == "agent_src":
         d = os.path.dirname(d)
@@ -4018,7 +4032,7 @@ def _orc_base_dir() -> str:
 
 
 def _orc_search_dirs() -> list[str]:
-    """Deduplicated dirs to look for data files: agent dir, then cwd."""
+    """Каталоги без повторов для поиска файлов данных: каталог агента, затем cwd."""
     out: list[str] = []
     for d in (_orc_base_dir(), os.getcwd()):
         if d and d not in out:
@@ -4027,7 +4041,7 @@ def _orc_search_dirs() -> list[str]:
 
 
 def _orc_load_dotenv() -> None:
-    """Load <agent dir>/.env (and cwd .env) via python-dotenv if installed; never overrides env."""
+    """Загружает <каталог агента>/.env (и .env из cwd) через python-dotenv, если он установлен; окружение не перезаписывается."""
     try:
         from dotenv import load_dotenv
     except Exception:
@@ -4042,7 +4056,7 @@ def _orc_load_dotenv() -> None:
 
 
 def _orc_is_missing(v: Any) -> bool:
-    """None / NaN / pd.NA / empty string -> True (filter not set; mirrors organizer `pd.notna`)."""
+    """None / NaN / pd.NA / пустая строка -> True (фильтр не задан; соответствует `pd.notna` у организаторов)."""
     if v is None:
         return True
     if isinstance(v, str):
@@ -4054,7 +4068,7 @@ def _orc_is_missing(v: Any) -> bool:
 
 
 def _orc_campaign_matches(camp: dict, sub: tuple) -> bool:
-    """True if a campaign's filters select sub-cell `sub` (tariff, arpu, data, call)."""
+    """True, если фильтры кампании выбирают подъячейку `sub` (tariff, arpu, data, call)."""
     cur, arpu, data, call = sub
     for key, val in (("filter_arpu_segment", arpu), ("filter_data_segment", data), ("filter_call_segment", call)):
         f = camp.get(key)
@@ -4069,7 +4083,7 @@ def _orc_campaign_matches(camp: dict, sub: tuple) -> bool:
 
 
 def _orc_option_in_campaign(camp: dict, opt: Any) -> bool:
-    """Option belongs to campaign: same target/channel and filters cover its sub."""
+    """Вариант относится к кампании: совпадают целевой тариф и канал, а фильтры покрывают его подъячейку."""
     return (
         camp.get("target_tariff") == opt.target
         and camp.get("channel") == opt.channel
@@ -4078,7 +4092,7 @@ def _orc_option_in_campaign(camp: dict, opt: Any) -> bool:
 
 
 def _orc_emergency_campaigns(env: Any) -> list[dict]:
-    """Last resort without any module: one valid push campaign whose filters match nobody, else []."""
+    """Крайняя мера без модулей: одна валидная push-кампания, фильтры которой не выбирают ни одного клиента, иначе []."""
     try:
         tariffs = [str(t) for t in list(env.tariffs["tariff_plan_code"])]
         channels = list(env.channels)
@@ -4120,7 +4134,7 @@ def _orc_emergency_campaigns(env: Any) -> list[dict]:
 
 
 def _orc_finite(x: Any) -> bool:
-    """True for a real finite number."""
+    """True для вещественного конечного числа."""
     try:
         return math.isfinite(float(x))
     except (TypeError, ValueError):
@@ -4128,14 +4142,14 @@ def _orc_finite(x: Any) -> bool:
 
 
 def _orc_weight_key(k: Any) -> tuple:
-    """LLM weight key -> ArmKey (accepts tuples/lists or "from|seg|to" strings)."""
+    """Ключ веса LLM -> ArmKey (принимает кортежи/списки или строки вида "from|seg|to")."""
     if isinstance(k, str):
         return parse_arm_id(k)
     return tuple(k)
 
 
 def run_coro(coro: Any) -> Any:
-    """Run a coroutine to completion: asyncio.run, or a dedicated thread + loop if a loop is running."""
+    """Выполняет корутину до завершения: через asyncio.run или в отдельном потоке со своим циклом, если цикл уже запущен."""
     try:
         asyncio.get_running_loop()
     except RuntimeError:
@@ -4145,7 +4159,7 @@ def run_coro(coro: Any) -> Any:
     def _runner() -> None:
         try:
             box["value"] = asyncio.run(coro)
-        except BaseException as exc:  # propagated to the caller thread
+        except BaseException as exc:  # пробрасывается в вызывающий поток
             box["error"] = exc
 
     th = threading.Thread(target=_runner, name="agent-orchestrator", daemon=True)
@@ -4157,7 +4171,7 @@ def run_coro(coro: Any) -> Any:
 
 
 class Orchestrator:
-    """Async pipeline driver; every stage is guarded and the run always yields campaigns."""
+    """Драйвер асинхронного конвейера; каждый этап защищён, и запуск всегда возвращает кампании."""
 
     def __init__(
         self,
@@ -4190,13 +4204,13 @@ class Orchestrator:
         self.explore_reach_spent = 0
         self.pilots_per_arm: dict = {}
         self.used_subs: dict = {}
-        self.pilot_records: dict = {}  # SubKey -> list[(ArmKey, channel, n)]
+        self.pilot_records: dict = {}  # SubKey -> список [(ArmKey, channel, n)]
         self.extra: dict[str, Any] = {}
 
-    # ------------------------------------------------------------------ helpers
+    # ------------------------------------------------------------------ вспомогательные методы
 
     def _c(self, name: str) -> Any:
-        """Resolve a component (injected override, else module-level name)."""
+        """Возвращает компонент (внедрённую подмену, иначе объект уровня модуля)."""
         if name in self.components:
             return self.components[name]
         obj = globals().get(name)
@@ -4209,7 +4223,7 @@ class Orchestrator:
         self.log.log("stage_error", stage=stage, error=f"{type(exc).__name__}: {str(exc)[:300]}")
 
     def _ratio_fn(self) -> Callable[[str, str, str, str], float]:
-        """Posterior-mean lift ratio per (tariff, arpu, target, channel), memoised."""
+        """Апостериорное среднее коэффициента лифта по (tariff, arpu, target, channel) с мемоизацией."""
         cache: dict[tuple, float] = {}
         model = self.model
 
@@ -4228,10 +4242,10 @@ class Orchestrator:
     def _simulate(self, campaigns: list[dict], budget: float, contacts: int) -> Any:
         return self.sim.simulate(campaigns, self._ratio_fn(), budget, contacts)
 
-    # ------------------------------------------------------------------ run
+    # ------------------------------------------------------------------ запуск
 
     async def run(self, env: Any) -> list[dict]:
-        """Execute all stages under the global time budget; never raises (except cancellation)."""
+        """Выполняет все этапы в рамках общего бюджета времени; никогда не выбрасывает исключений (кроме отмены)."""
         cfg = self.cfg
         t0 = time.monotonic()
         hard_deadline = t0 + float(cfg.time_budget_s)
@@ -4255,7 +4269,7 @@ class Orchestrator:
         except (TimeoutError, asyncio.TimeoutError):
             self.log.log("timeout", stage="learn", pilots=len(self.log.pilots))
             self.stages.setdefault("timeout", "learn")
-        except Exception as exc:  # defensive: stages already guard themselves
+        except Exception as exc:  # защитная мера: этапы уже защищают себя сами
             self._fail("learn", exc)
 
         if self.dv is None:
@@ -4272,10 +4286,10 @@ class Orchestrator:
             self._fail("post", exc)
         return self._finalize(env, self.campaigns)
 
-    # ------------------------------------------------------------------ stages
+    # ------------------------------------------------------------------ этапы
 
     async def _stage_research(self, env: Any) -> None:
-        """DataView + history in parallel threads, then priors."""
+        """DataView и история в параллельных потоках, затем априорные распределения."""
         try:
             DataView_ = self._c("DataView")
             dirs = _orc_search_dirs()
@@ -4325,7 +4339,7 @@ class Orchestrator:
             self._fail("engine", exc)
 
     def _hypothesis_batches(self) -> dict[str, list[dict]]:
-        """Top arms by ΣP_cell·(mu+sd), grouped by ARPU segment."""
+        """Лучшие руки по ΣP_cell·(mu+sd), сгруппированные по ARPU-сегменту."""
         scored: list[tuple[float, tuple, Any]] = []
         cells = getattr(self.dv, "cells", {}) or {}
         for arm in sorted(self.priors):
@@ -4369,7 +4383,7 @@ class Orchestrator:
         return out
 
     async def _stage_hypotheses(self, mode: str, learn_deadline: float) -> None:
-        """LLM plausibility weights for the top arms (neutral on any failure)."""
+        """Веса правдоподобия от LLM для лучших рук (нейтральные при любом сбое)."""
         if self.dv is None or not self.priors:
             self.stages["hypotheses"] = "skipped"
             return
@@ -4416,7 +4430,7 @@ class Orchestrator:
         )
 
     async def _stage_explore(self, env: Any, deadline: float) -> None:
-        """Sequential pilots chosen by the planner; results feed the arm model."""
+        """Последовательные пилоты, выбранные планировщиком; результаты поступают в модель рук."""
         if self.planner is None or self.model is None:
             self.stages["explore"] = "skipped"
             return
@@ -4466,7 +4480,7 @@ class Orchestrator:
                 cost = float(result["cost"])
                 if not (_orc_finite(y) and _orc_finite(cost)) or n <= 0 or cost < 0:
                     raise ValueError(f"malformed pilot result y={y} n={n} cost={cost}")
-            except Exception as exc:  # RuntimeError/ValueError from env, or malformed result
+            except Exception as exc:  # RuntimeError/ValueError из env или некорректный результат
                 self._account_env_delta(env, pre, spec)
                 failures += 1
                 self.log.log("pilot_error", arm=arm_id(spec.arm), channel=spec.channel,
@@ -4512,15 +4526,16 @@ class Orchestrator:
                 "score": float(spec.score) if spec.score is not None else None, "reason": str(spec.reason)[:200],
             })
             self.log.log("pilot", arm=arm_id(arm), channel=spec.channel, n=n, y=round(y, 4), cost=cost)
-            await asyncio.sleep(0)  # cancellation point for the global deadline
+            await asyncio.sleep(0)  # точка отмены для общего дедлайна
 
     def _verify_spec(self, env: Any) -> Optional[PilotSpec]:
-        """Verification pilot: the deployed arm with the largest expected downside in the current coarse plan.
+        """Проверочный пилот: развёрнутая рука с наибольшим ожидаемым убытком в текущем грубом плане.
 
-        The coarse plan (as it would be deployed now) is built; for every deployed (arm, channel) the expected
-        loss of deploying it is sum_p·E[max(0, −r)] under the posterior. The riskiest arm is piloted (freshest
-        sub of its cell, n = max_pilot) if that loss exceeds the pilot's money plus the contacts' opportunity value
-        (half the plan's average net per contact; zero when the plan leaves enough reach unused).
+        Строится грубый план (в том виде, в каком он был бы развёрнут сейчас); для каждой развёрнутой пары
+        (arm, channel) ожидаемый убыток от развёртывания равен sum_p·E[max(0, −r)] по апостериору. Самая рискованная
+        рука пилотируется (самая свежая подъячейка её ячейки, n = max_pilot), если этот убыток превышает стоимость
+        пилота плюс альтернативную ценность контактов (половина среднего net плана на контакт; ноль, если план
+        оставляет достаточно неиспользованного охвата).
         """
         cfg = self.cfg
         budget, contacts = float(env.remaining_budget), int(env.remaining_contacts)
@@ -4571,7 +4586,7 @@ class Orchestrator:
         if n < int(cfg.min_pilot):
             return None
         if contacts - used >= n:
-            v_contact = 0.0  # the plan leaves enough reach unused: pilot contacts displace nothing
+            v_contact = 0.0  # план оставляет достаточно неиспользованного охвата: контакты пилота ничего не вытесняют
         chans = list(getattr(self.dv, "channels", []) or [])
         p_ch = ch
         if float(self.dv.cost(ch)) * n > _ORC_VERIFY_MONEY_FRAC * el or float(self.dv.cost(ch)) * n > budget:
@@ -4595,7 +4610,7 @@ class Orchestrator:
             return (float("nan"), 0, 0)
 
     def _account_env_delta(self, env: Any, pre: tuple[float, int, int], spec: Any) -> None:
-        """If a failed pilot call still consumed resources, book them from env counter deltas."""
+        """Если неудачный вызов пилота всё же израсходовал ресурсы, учитывает их по разнице счётчиков env."""
         post = self._env_counters(env)
         if post[2] >= pre[2]:
             return
@@ -4611,10 +4626,11 @@ class Orchestrator:
         self.log.log("pilot_spent_without_result", arm=arm_id(arm), money=money, reach=reach)
 
     def _pilot_coverage(self) -> dict[tuple, tuple[float, float, Any]]:
-        """sub -> (expected distinct pilot customers, pilot lift ratio, SubCell).
+        """sub -> (ожидаемое число уникальных клиентов пилотов, коэффициент лифта пилота, SubCell).
 
-        Pilots draw random samples of the sub, so repeated pilots overlap: E[distinct] =
-        n_sub·(1 − Π(1 − n_i/n_sub)). Ratio = max posterior ratio over the sub's pilots (best pilot lift kept).
+        Пилоты берут случайные выборки из подъячейки, поэтому повторные пилоты пересекаются: E[distinct] =
+        n_sub·(1 − Π(1 − n_i/n_sub)). Коэффициент = максимальный апостериорный коэффициент по пилотам подъячейки
+        (сохраняется лучший лифт пилота).
         """
         out: dict[tuple, tuple[float, float, Any]] = {}
         subs = getattr(self.dv, "subs", {}) or {}
@@ -4631,17 +4647,18 @@ class Orchestrator:
                     miss *= max(1.0 - min(float(n_i), n_sub) / n_sub, 0.0)
                 covered = n_sub * (1.0 - miss)
                 r_p = max(fn(a[0], a[1], a[2], ch) for a, ch, _n in recs)
-            else:  # contacts booked without arm info: assume disjoint, zero known pilot lift
+            else:  # контакты учтены без информации о руке: считаем их непересекающимися, известный лифт пилота нулевой
                 covered = min(float(self.used_subs.get(sub, 0)), n_sub)
                 r_p = 0.0
             out[sub] = (covered, r_p, sc)
         return out
 
     def _pilot_overlap_gain(self, camps: list[dict]) -> float:
-        """Gain the simulator over-counts on pilot customers re-contacted by final campaigns.
+        """Выигрыш, который симулятор завышает на клиентах пилотов, повторно охваченных финальными кампаниями.
 
-        Organizer scoring keeps max(pilot lift, final lift) per customer, while the final-only simulation counts
-        the final lift f; the over-count per re-contacted customer is f − (max(p, f) − p) = min(p, f).
+        Скоринг организаторов сохраняет max(лифт пилота, финальный лифт) для каждого клиента, тогда как симуляция
+        только финального плана учитывает финальный лифт f; завышение на одного повторно охваченного клиента
+        равно f − (max(p, f) − p) = min(p, f).
         """
         cov = self._pilot_coverage()
         if not cov:
@@ -4660,14 +4677,14 @@ class Orchestrator:
         return total
 
     def _allocate_sync(self, budget: float, contacts: int) -> tuple[Any, list[dict], dict]:
-        """Try pilot-sub handling variants (overlap cost vs exclusion); keep the best simulated net."""
+        """Перебирает варианты обработки подъячеек пилотов (стоимость пересечения или исключение); оставляет лучший смоделированный net."""
         cfg = self.cfg
         packer = self._c("CampaignPacker")(cfg, self.dv, self.sim)
         self.packer = packer
         variants: list[tuple[str, dict]] = []
         if self.used_subs:
-            # Option cost already pays for re-contacting pilot customers; what is lost is their lift,
-            # which the pilot already earned (organizer dedups by max). Charge that expected lost lift.
+            # Стоимость варианта уже покрывает повторный контакт с клиентами пилота; теряется их лифт,
+            # уже полученный пилотом (организаторы дедуплицируют по максимуму). Начисляем этот ожидаемый потерянный лифт.
             cov = self._pilot_coverage()
             extra = {s: float(c) * float(sc.mean_p) * max(r_p, 0.0) for s, (c, r_p, sc) in sorted(cov.items())}
             variants.append(("overlap_cost", {"extra_cost": extra}))
@@ -4682,7 +4699,7 @@ class Orchestrator:
         for name, kw in variants:
             try:
                 if "_coarse" in kw:
-                    # cell-wide campaigns; the plan (evidence / veto) holds the options those campaigns deploy
+                    # кампании на всю ячейку; план (evidence / veto) содержит варианты, которые развёртывают эти кампании
                     camps = packer.pack_coarse(self.model, budget, contacts, z=kw["_coarse"])
                     plan = self._plan_from_campaigns(camps)
                 else:
@@ -4707,7 +4724,7 @@ class Orchestrator:
         return best[2], best[3], info
 
     def _plan_from_campaigns(self, camps: list[dict]) -> Plan:
-        """Plan whose options are the (sub, target, channel) triples the campaigns deploy (best per sub)."""
+        """План, варианты которого — тройки (sub, target, channel), развёртываемые кампаниями (лучшая на подъячейку)."""
         best: dict[tuple, Any] = {}
         subs = getattr(self.dv, "subs", {}) or {}
         for camp in camps:
@@ -4743,7 +4760,7 @@ class Orchestrator:
             self._fail("allocate", exc)
 
     def _evidence(self, camps: list[dict], budget: float, contacts: int) -> list[dict]:
-        """Per-campaign evidence: simulated economics + aggregated option uncertainty + pilots."""
+        """Данные по каждой кампании: смоделированная экономика + агрегированная неопределённость вариантов + пилоты."""
         per: dict[str, dict] = {}
         try:
             res = self._simulate(camps, budget, contacts)
@@ -4756,7 +4773,7 @@ class Orchestrator:
             name = str(camp.get("campaign_name"))
             opts = [o for o in options if _orc_option_in_campaign(camp, o)]
             mean = sum(float(o.net_mean) for o in opts)
-            # options sharing (tariff, arpu, target, channel) share one posterior -> perfectly correlated
+            # варианты с общими (tariff, arpu, target, channel) имеют один апостериор -> полностью коррелированы
             grp: dict[tuple, float] = {}
             for o in opts:
                 g = (o.sub[0], o.sub[1], o.target, o.channel)
@@ -4806,39 +4823,63 @@ class Orchestrator:
             self.review = outcome
             names = {str(c.get("campaign_name")) for c in camps}
             veto = sorted({str(v) for v in (outcome.veto or []) if str(v) in names})
-            self.log.log("review", source=outcome.source, applied=bool(outcome.applied), veto=veto)
-            self.extra["review"] = {"source": outcome.source, "applied": bool(outcome.applied), "veto": veto,
-                                    "summary": str(outcome.summary)[:1000], "rationale": str(outcome.rationale)[:1000]}
-            if mode == "decide" and outcome.applied and veto and len(veto) < len(camps):
-                self.campaigns = await asyncio.to_thread(self._apply_veto, camps, veto, budget, contacts)
-                self.log.log("veto_applied", veto=veto, campaigns=len(self.campaigns))
+            requested = bool(outcome.applied)
+            outcome.applied = False
+            info = {"source": outcome.source, "applied": False, "veto": veto, "decision": "not_applied",
+                    "summary": str(outcome.summary)[:1000], "rationale": str(outcome.rationale)[:1000]}
+            self.extra["review"] = info
+            if mode == "decide" and requested and veto and len(veto) < len(camps):
+                try:
+                    candidate, plan, decision = await asyncio.to_thread(
+                        self._prepare_veto, camps, veto, budget, contacts)
+                    info.update(decision)
+                    if info["decision"] == "accepted":
+                        self.campaigns, self.plan = candidate, plan
+                        outcome.applied = info["applied"] = True
+                        self.log.log("veto_applied", veto=veto, campaigns=len(candidate))
+                except Exception as exc:
+                    info["decision"] = "error"
+                    info["error"] = type(exc).__name__
+                    self._fail("review_veto", exc)
+            self.log.log("review", source=outcome.source, applied=info["applied"], veto=veto,
+                         decision=info["decision"])
             self.stages["review"] = "ok"
         except Exception as exc:
             self._fail("review", exc)
 
-    def _apply_veto(self, camps: list[dict], veto: list[str], budget: float, contacts: int) -> list[dict]:
-        """Drop vetoed campaigns' options and re-pack; fall back to plain filtering."""
+    def _prepare_veto(self, camps: list[dict], veto: list[str], budget: float,
+                      contacts: int) -> tuple[list[dict], Any, dict]:
+        """Build and check the repacked veto candidate without mutating the current plan."""
         vset = set(veto)
         kept = [c for c in camps if str(c.get("campaign_name")) not in vset]
         vetoed = [c for c in camps if str(c.get("campaign_name")) in vset]
+        opts = [o for o in self.plan.options if not any(_orc_option_in_campaign(c, o) for c in vetoed)]
+        plan2 = Plan(options=opts, lambda_money=self.plan.lambda_money, lambda_reach=self.plan.lambda_reach,
+                     total_net_lcb=float(sum(o.net_lcb for o in opts)),
+                     total_cost=float(sum(o.cost for o in opts)),
+                     total_contacts=int(sum(o.n for o in opts)))
         if (self.extra.get("allocate") or {}).get("chosen") == "coarse":
-            return kept  # cell-wide campaigns are independent: dropping them is the re-pack
-        try:
-            opts = [o for o in self.plan.options if not any(_orc_option_in_campaign(c, o) for c in vetoed)]
-            plan2 = Plan(options=opts, lambda_money=self.plan.lambda_money, lambda_reach=self.plan.lambda_reach,
-                         total_net_lcb=float(sum(o.net_lcb for o in opts)),
-                         total_cost=float(sum(o.cost for o in opts)),
-                         total_contacts=int(sum(o.n for o in opts)))
-            repacked = self.packer.pack(plan2, self.model, budget, contacts)
-            if repacked:
-                self.plan = plan2
-                return list(repacked)
-        except Exception as exc:
-            self._fail("repack", exc)
-        return kept
+            candidate = kept
+        else:
+            candidate = list(self.packer.pack(plan2, self.model, budget, contacts))
+        before = self._simulate(camps, budget, contacts)
+        after = self._simulate(candidate, budget, contacts)
+        before_net = float(before.net) - self._pilot_overlap_gain(camps)
+        after_net = float(after.net) - self._pilot_overlap_gain(candidate)
+        finite = all(_orc_finite(v) for v in (before_net, after_net, after.gross, after.cost, after.contacts))
+        valid = (1 <= len(candidate) <= int(self.cfg.max_campaigns) and bool(after.within_limits)
+                 and 0 <= float(after.cost) <= budget + 1e-9 and 0 <= float(after.contacts) <= contacts
+                 and len(after.per_campaign) == len(candidate)
+                 and not any(pc.get("dropped") or pc.get("ratio_errors") or pc.get("capped_campaign")
+                             or pc.get("capped_reach") or pc.get("capped_money") for pc in after.per_campaign))
+        decision = ("non_finite" if not finite else "invalid_candidate" if not valid
+                    else "lower_expected_net" if after_net + 1e-9 < before_net else "accepted")
+        return candidate, plan2, {"decision": decision,
+                                  "baseline_net": before_net if _orc_finite(before_net) else None,
+                                  "candidate_net": after_net if _orc_finite(after_net) else None}
 
     def _guardrails(self, sim: Any) -> Any:
-        """Guardrails instance (passes the run log when the implementation accepts it)."""
+        """Экземпляр Guardrails (передаёт журнал запуска, если реализация его принимает)."""
         cls = self._c("Guardrails")
         try:
             return cls(self.cfg, self.dv, sim, log=self.log)
@@ -4846,7 +4887,7 @@ class Orchestrator:
             return cls(self.cfg, self.dv, sim)
 
     def _finalize(self, env: Any, campaigns: list[dict]) -> list[dict]:
-        """Guardrails validation (fallback: emergency campaign) + best-effort report."""
+        """Валидация через Guardrails (запасной вариант: аварийная кампания) + отчёт по возможности."""
         final: list[dict] = []
         try:
             budget, contacts = float(env.remaining_budget), int(env.remaining_contacts)
@@ -4881,7 +4922,7 @@ class Orchestrator:
 
 
 class Agent:
-    """Submission entry point: Agent().act(env) -> list of campaign dicts (never raises)."""
+    """Точка входа сабмита: Agent().act(env) -> список словарей кампаний (никогда не выбрасывает исключений)."""
 
     def __init__(
         self,
@@ -4895,7 +4936,7 @@ class Agent:
         self.last_orchestrator: Optional[Orchestrator] = None
 
     def act(self, env: Any) -> list[dict]:
-        """Run the full pipeline; on any failure return the guardrails fallback list."""
+        """Запускает полный конвейер; при любом сбое возвращает запасной список от guardrails."""
         try:
             _orc_load_dotenv()
         except Exception:
@@ -4928,7 +4969,7 @@ class Agent:
             return self._fallback(cfg, orch, env)
 
     def _fallback(self, cfg: Config, orch: Orchestrator, env: Any) -> list[dict]:
-        """Guardrails fallback (empty plan validated) or an emergency no-op campaign."""
+        """Запасной вариант guardrails (валидированный пустой план) или аварийная пустая кампания."""
         try:
             dv = orch.dv if orch.dv is not None else orch._c("DataView")(env.customer_profile, env.tariffs, env.channels)
             sim = orch.sim if orch.sim is not None else orch._c("ScoreSimulator")(dv, env.customer_profile)

@@ -46,7 +46,7 @@ from typing import Any, Callable, Optional
 
 import pandas as pd
 
-# Orchestrator: async pipeline research -> hypotheses -> explore -> allocate -> review -> finalize.
+# Этапы оркестратора: research -> hypotheses -> explore -> allocate -> review -> finalize.
 # Оркестратор: асинхронный конвейер этапов с общим дедлайном и безопасными fallback-ами.
 
 _ORC_COMPONENT_NAMES: tuple[str, ...] = (
@@ -64,18 +64,18 @@ _ORC_COMPONENT_NAMES: tuple[str, ...] = (
     "Reporter",
 )
 _ORC_MAX_CONSECUTIVE_FAILURES = 3
-_ORC_CALIBRATE_PRIOR = True  # re-fit prior bias / extra variance from pilots after every result
-_ORC_VERIFY_PILOTS = 8  # pilots reserved for verifying the arms the coarse plan would deploy
-_ORC_VERIFY_MONEY_FRAC = 0.1  # pilot on the deploy channel only if it costs <= this share of the expected loss
-_ORC_COARSE_Z_FRAC = 0.5  # coarse packing ranks arms by mean − 0.5·z_risk·sd
+_ORC_CALIBRATE_PRIOR = True  # переоценка смещения априора / дополнительной дисперсии по пилотам после каждого результата
+_ORC_VERIFY_PILOTS = 8  # пилоты, зарезервированные для проверки рук, которые развернул бы грубый план
+_ORC_VERIFY_MONEY_FRAC = 0.1  # пилот в канале развёртывания, только если он стоит <= этой доли ожидаемых потерь
+_ORC_COARSE_Z_FRAC = 0.5  # грубая упаковка ранжирует руки по mean − 0.5·z_risk·sd
 _ORC_FILTER_KEYS = ("filter_arpu_segment", "filter_data_segment", "filter_call_segment", "filter_current_tariff")
 
 
 def _orc_base_dir() -> str:
-    """Directory holding agent.py (repo root when running from the agent_src package)."""
+    """Каталог с agent.py (корень репозитория при запуске из пакета agent_src)."""
     try:
         d = os.path.dirname(os.path.abspath(__file__))
-    except NameError:  # pragma: no cover - exotic loaders
+    except NameError:  # pragma: no cover - экзотические загрузчики
         return os.getcwd()
     if os.path.basename(d) == "agent_src":
         d = os.path.dirname(d)
@@ -83,7 +83,7 @@ def _orc_base_dir() -> str:
 
 
 def _orc_search_dirs() -> list[str]:
-    """Deduplicated dirs to look for data files: agent dir, then cwd."""
+    """Каталоги без повторов для поиска файлов данных: каталог агента, затем cwd."""
     out: list[str] = []
     for d in (_orc_base_dir(), os.getcwd()):
         if d and d not in out:
@@ -92,7 +92,7 @@ def _orc_search_dirs() -> list[str]:
 
 
 def _orc_load_dotenv() -> None:
-    """Load <agent dir>/.env (and cwd .env) via python-dotenv if installed; never overrides env."""
+    """Загружает <каталог агента>/.env (и .env из cwd) через python-dotenv, если он установлен; окружение не перезаписывается."""
     try:
         from dotenv import load_dotenv
     except Exception:
@@ -107,7 +107,7 @@ def _orc_load_dotenv() -> None:
 
 
 def _orc_is_missing(v: Any) -> bool:
-    """None / NaN / pd.NA / empty string -> True (filter not set; mirrors organizer `pd.notna`)."""
+    """None / NaN / pd.NA / пустая строка -> True (фильтр не задан; соответствует `pd.notna` у организаторов)."""
     if v is None:
         return True
     if isinstance(v, str):
@@ -119,7 +119,7 @@ def _orc_is_missing(v: Any) -> bool:
 
 
 def _orc_campaign_matches(camp: dict, sub: tuple) -> bool:
-    """True if a campaign's filters select sub-cell `sub` (tariff, arpu, data, call)."""
+    """True, если фильтры кампании выбирают подъячейку `sub` (tariff, arpu, data, call)."""
     cur, arpu, data, call = sub
     for key, val in (("filter_arpu_segment", arpu), ("filter_data_segment", data), ("filter_call_segment", call)):
         f = camp.get(key)
@@ -134,7 +134,7 @@ def _orc_campaign_matches(camp: dict, sub: tuple) -> bool:
 
 
 def _orc_option_in_campaign(camp: dict, opt: Any) -> bool:
-    """Option belongs to campaign: same target/channel and filters cover its sub."""
+    """Вариант относится к кампании: совпадают целевой тариф и канал, а фильтры покрывают его подъячейку."""
     return (
         camp.get("target_tariff") == opt.target
         and camp.get("channel") == opt.channel
@@ -143,7 +143,7 @@ def _orc_option_in_campaign(camp: dict, opt: Any) -> bool:
 
 
 def _orc_emergency_campaigns(env: Any) -> list[dict]:
-    """Last resort without any module: one valid push campaign whose filters match nobody, else []."""
+    """Крайняя мера без модулей: одна валидная push-кампания, фильтры которой не выбирают ни одного клиента, иначе []."""
     try:
         tariffs = [str(t) for t in list(env.tariffs["tariff_plan_code"])]
         channels = list(env.channels)
@@ -185,7 +185,7 @@ def _orc_emergency_campaigns(env: Any) -> list[dict]:
 
 
 def _orc_finite(x: Any) -> bool:
-    """True for a real finite number."""
+    """True для вещественного конечного числа."""
     try:
         return math.isfinite(float(x))
     except (TypeError, ValueError):
@@ -193,14 +193,14 @@ def _orc_finite(x: Any) -> bool:
 
 
 def _orc_weight_key(k: Any) -> tuple:
-    """LLM weight key -> ArmKey (accepts tuples/lists or "from|seg|to" strings)."""
+    """Ключ веса LLM -> ArmKey (принимает кортежи/списки или строки вида "from|seg|to")."""
     if isinstance(k, str):
         return parse_arm_id(k)
     return tuple(k)
 
 
 def run_coro(coro: Any) -> Any:
-    """Run a coroutine to completion: asyncio.run, or a dedicated thread + loop if a loop is running."""
+    """Выполняет корутину до завершения: через asyncio.run или в отдельном потоке со своим циклом, если цикл уже запущен."""
     try:
         asyncio.get_running_loop()
     except RuntimeError:
@@ -210,7 +210,7 @@ def run_coro(coro: Any) -> Any:
     def _runner() -> None:
         try:
             box["value"] = asyncio.run(coro)
-        except BaseException as exc:  # propagated to the caller thread
+        except BaseException as exc:  # пробрасывается в вызывающий поток
             box["error"] = exc
 
     th = threading.Thread(target=_runner, name="agent-orchestrator", daemon=True)
@@ -222,7 +222,7 @@ def run_coro(coro: Any) -> Any:
 
 
 class Orchestrator:
-    """Async pipeline driver; every stage is guarded and the run always yields campaigns."""
+    """Драйвер асинхронного конвейера; каждый этап защищён, и запуск всегда возвращает кампании."""
 
     def __init__(
         self,
@@ -255,13 +255,13 @@ class Orchestrator:
         self.explore_reach_spent = 0
         self.pilots_per_arm: dict = {}
         self.used_subs: dict = {}
-        self.pilot_records: dict = {}  # SubKey -> list[(ArmKey, channel, n)]
+        self.pilot_records: dict = {}  # SubKey -> список [(ArmKey, channel, n)]
         self.extra: dict[str, Any] = {}
 
-    # ------------------------------------------------------------------ helpers
+    # ------------------------------------------------------------------ вспомогательные методы
 
     def _c(self, name: str) -> Any:
-        """Resolve a component (injected override, else module-level name)."""
+        """Возвращает компонент (внедрённую подмену, иначе объект уровня модуля)."""
         if name in self.components:
             return self.components[name]
         obj = globals().get(name)
@@ -274,7 +274,7 @@ class Orchestrator:
         self.log.log("stage_error", stage=stage, error=f"{type(exc).__name__}: {str(exc)[:300]}")
 
     def _ratio_fn(self) -> Callable[[str, str, str, str], float]:
-        """Posterior-mean lift ratio per (tariff, arpu, target, channel), memoised."""
+        """Апостериорное среднее коэффициента лифта по (tariff, arpu, target, channel) с мемоизацией."""
         cache: dict[tuple, float] = {}
         model = self.model
 
@@ -293,10 +293,10 @@ class Orchestrator:
     def _simulate(self, campaigns: list[dict], budget: float, contacts: int) -> Any:
         return self.sim.simulate(campaigns, self._ratio_fn(), budget, contacts)
 
-    # ------------------------------------------------------------------ run
+    # ------------------------------------------------------------------ запуск
 
     async def run(self, env: Any) -> list[dict]:
-        """Execute all stages under the global time budget; never raises (except cancellation)."""
+        """Выполняет все этапы в рамках общего бюджета времени; никогда не выбрасывает исключений (кроме отмены)."""
         cfg = self.cfg
         t0 = time.monotonic()
         hard_deadline = t0 + float(cfg.time_budget_s)
@@ -320,7 +320,7 @@ class Orchestrator:
         except (TimeoutError, asyncio.TimeoutError):
             self.log.log("timeout", stage="learn", pilots=len(self.log.pilots))
             self.stages.setdefault("timeout", "learn")
-        except Exception as exc:  # defensive: stages already guard themselves
+        except Exception as exc:  # защитная мера: этапы уже защищают себя сами
             self._fail("learn", exc)
 
         if self.dv is None:
@@ -337,10 +337,10 @@ class Orchestrator:
             self._fail("post", exc)
         return self._finalize(env, self.campaigns)
 
-    # ------------------------------------------------------------------ stages
+    # ------------------------------------------------------------------ этапы
 
     async def _stage_research(self, env: Any) -> None:
-        """DataView + history in parallel threads, then priors."""
+        """DataView и история в параллельных потоках, затем априорные распределения."""
         try:
             DataView_ = self._c("DataView")
             dirs = _orc_search_dirs()
@@ -390,7 +390,7 @@ class Orchestrator:
             self._fail("engine", exc)
 
     def _hypothesis_batches(self) -> dict[str, list[dict]]:
-        """Top arms by ΣP_cell·(mu+sd), grouped by ARPU segment."""
+        """Лучшие руки по ΣP_cell·(mu+sd), сгруппированные по ARPU-сегменту."""
         scored: list[tuple[float, tuple, Any]] = []
         cells = getattr(self.dv, "cells", {}) or {}
         for arm in sorted(self.priors):
@@ -434,7 +434,7 @@ class Orchestrator:
         return out
 
     async def _stage_hypotheses(self, mode: str, learn_deadline: float) -> None:
-        """LLM plausibility weights for the top arms (neutral on any failure)."""
+        """Веса правдоподобия от LLM для лучших рук (нейтральные при любом сбое)."""
         if self.dv is None or not self.priors:
             self.stages["hypotheses"] = "skipped"
             return
@@ -481,7 +481,7 @@ class Orchestrator:
         )
 
     async def _stage_explore(self, env: Any, deadline: float) -> None:
-        """Sequential pilots chosen by the planner; results feed the arm model."""
+        """Последовательные пилоты, выбранные планировщиком; результаты поступают в модель рук."""
         if self.planner is None or self.model is None:
             self.stages["explore"] = "skipped"
             return
@@ -531,7 +531,7 @@ class Orchestrator:
                 cost = float(result["cost"])
                 if not (_orc_finite(y) and _orc_finite(cost)) or n <= 0 or cost < 0:
                     raise ValueError(f"malformed pilot result y={y} n={n} cost={cost}")
-            except Exception as exc:  # RuntimeError/ValueError from env, or malformed result
+            except Exception as exc:  # RuntimeError/ValueError из env или некорректный результат
                 self._account_env_delta(env, pre, spec)
                 failures += 1
                 self.log.log("pilot_error", arm=arm_id(spec.arm), channel=spec.channel,
@@ -577,15 +577,16 @@ class Orchestrator:
                 "score": float(spec.score) if spec.score is not None else None, "reason": str(spec.reason)[:200],
             })
             self.log.log("pilot", arm=arm_id(arm), channel=spec.channel, n=n, y=round(y, 4), cost=cost)
-            await asyncio.sleep(0)  # cancellation point for the global deadline
+            await asyncio.sleep(0)  # точка отмены для общего дедлайна
 
     def _verify_spec(self, env: Any) -> Optional[PilotSpec]:
-        """Verification pilot: the deployed arm with the largest expected downside in the current coarse plan.
+        """Проверочный пилот: развёрнутая рука с наибольшим ожидаемым убытком в текущем грубом плане.
 
-        The coarse plan (as it would be deployed now) is built; for every deployed (arm, channel) the expected
-        loss of deploying it is sum_p·E[max(0, −r)] under the posterior. The riskiest arm is piloted (freshest
-        sub of its cell, n = max_pilot) if that loss exceeds the pilot's money plus the contacts' opportunity value
-        (half the plan's average net per contact; zero when the plan leaves enough reach unused).
+        Строится грубый план (в том виде, в каком он был бы развёрнут сейчас); для каждой развёрнутой пары
+        (arm, channel) ожидаемый убыток от развёртывания равен sum_p·E[max(0, −r)] по апостериору. Самая рискованная
+        рука пилотируется (самая свежая подъячейка её ячейки, n = max_pilot), если этот убыток превышает стоимость
+        пилота плюс альтернативную ценность контактов (половина среднего net плана на контакт; ноль, если план
+        оставляет достаточно неиспользованного охвата).
         """
         cfg = self.cfg
         budget, contacts = float(env.remaining_budget), int(env.remaining_contacts)
@@ -636,7 +637,7 @@ class Orchestrator:
         if n < int(cfg.min_pilot):
             return None
         if contacts - used >= n:
-            v_contact = 0.0  # the plan leaves enough reach unused: pilot contacts displace nothing
+            v_contact = 0.0  # план оставляет достаточно неиспользованного охвата: контакты пилота ничего не вытесняют
         chans = list(getattr(self.dv, "channels", []) or [])
         p_ch = ch
         if float(self.dv.cost(ch)) * n > _ORC_VERIFY_MONEY_FRAC * el or float(self.dv.cost(ch)) * n > budget:
@@ -660,7 +661,7 @@ class Orchestrator:
             return (float("nan"), 0, 0)
 
     def _account_env_delta(self, env: Any, pre: tuple[float, int, int], spec: Any) -> None:
-        """If a failed pilot call still consumed resources, book them from env counter deltas."""
+        """Если неудачный вызов пилота всё же израсходовал ресурсы, учитывает их по разнице счётчиков env."""
         post = self._env_counters(env)
         if post[2] >= pre[2]:
             return
@@ -676,10 +677,11 @@ class Orchestrator:
         self.log.log("pilot_spent_without_result", arm=arm_id(arm), money=money, reach=reach)
 
     def _pilot_coverage(self) -> dict[tuple, tuple[float, float, Any]]:
-        """sub -> (expected distinct pilot customers, pilot lift ratio, SubCell).
+        """sub -> (ожидаемое число уникальных клиентов пилотов, коэффициент лифта пилота, SubCell).
 
-        Pilots draw random samples of the sub, so repeated pilots overlap: E[distinct] =
-        n_sub·(1 − Π(1 − n_i/n_sub)). Ratio = max posterior ratio over the sub's pilots (best pilot lift kept).
+        Пилоты берут случайные выборки из подъячейки, поэтому повторные пилоты пересекаются: E[distinct] =
+        n_sub·(1 − Π(1 − n_i/n_sub)). Коэффициент = максимальный апостериорный коэффициент по пилотам подъячейки
+        (сохраняется лучший лифт пилота).
         """
         out: dict[tuple, tuple[float, float, Any]] = {}
         subs = getattr(self.dv, "subs", {}) or {}
@@ -696,17 +698,18 @@ class Orchestrator:
                     miss *= max(1.0 - min(float(n_i), n_sub) / n_sub, 0.0)
                 covered = n_sub * (1.0 - miss)
                 r_p = max(fn(a[0], a[1], a[2], ch) for a, ch, _n in recs)
-            else:  # contacts booked without arm info: assume disjoint, zero known pilot lift
+            else:  # контакты учтены без информации о руке: считаем их непересекающимися, известный лифт пилота нулевой
                 covered = min(float(self.used_subs.get(sub, 0)), n_sub)
                 r_p = 0.0
             out[sub] = (covered, r_p, sc)
         return out
 
     def _pilot_overlap_gain(self, camps: list[dict]) -> float:
-        """Gain the simulator over-counts on pilot customers re-contacted by final campaigns.
+        """Выигрыш, который симулятор завышает на клиентах пилотов, повторно охваченных финальными кампаниями.
 
-        Organizer scoring keeps max(pilot lift, final lift) per customer, while the final-only simulation counts
-        the final lift f; the over-count per re-contacted customer is f − (max(p, f) − p) = min(p, f).
+        Скоринг организаторов сохраняет max(лифт пилота, финальный лифт) для каждого клиента, тогда как симуляция
+        только финального плана учитывает финальный лифт f; завышение на одного повторно охваченного клиента
+        равно f − (max(p, f) − p) = min(p, f).
         """
         cov = self._pilot_coverage()
         if not cov:
@@ -725,14 +728,14 @@ class Orchestrator:
         return total
 
     def _allocate_sync(self, budget: float, contacts: int) -> tuple[Any, list[dict], dict]:
-        """Try pilot-sub handling variants (overlap cost vs exclusion); keep the best simulated net."""
+        """Перебирает варианты обработки подъячеек пилотов (стоимость пересечения или исключение); оставляет лучший смоделированный net."""
         cfg = self.cfg
         packer = self._c("CampaignPacker")(cfg, self.dv, self.sim)
         self.packer = packer
         variants: list[tuple[str, dict]] = []
         if self.used_subs:
-            # Option cost already pays for re-contacting pilot customers; what is lost is their lift,
-            # which the pilot already earned (organizer dedups by max). Charge that expected lost lift.
+            # Стоимость варианта уже покрывает повторный контакт с клиентами пилота; теряется их лифт,
+            # уже полученный пилотом (организаторы дедуплицируют по максимуму). Начисляем этот ожидаемый потерянный лифт.
             cov = self._pilot_coverage()
             extra = {s: float(c) * float(sc.mean_p) * max(r_p, 0.0) for s, (c, r_p, sc) in sorted(cov.items())}
             variants.append(("overlap_cost", {"extra_cost": extra}))
@@ -747,7 +750,7 @@ class Orchestrator:
         for name, kw in variants:
             try:
                 if "_coarse" in kw:
-                    # cell-wide campaigns; the plan (evidence / veto) holds the options those campaigns deploy
+                    # кампании на всю ячейку; план (evidence / veto) содержит варианты, которые развёртывают эти кампании
                     camps = packer.pack_coarse(self.model, budget, contacts, z=kw["_coarse"])
                     plan = self._plan_from_campaigns(camps)
                 else:
@@ -772,7 +775,7 @@ class Orchestrator:
         return best[2], best[3], info
 
     def _plan_from_campaigns(self, camps: list[dict]) -> Plan:
-        """Plan whose options are the (sub, target, channel) triples the campaigns deploy (best per sub)."""
+        """План, варианты которого — тройки (sub, target, channel), развёртываемые кампаниями (лучшая на подъячейку)."""
         best: dict[tuple, Any] = {}
         subs = getattr(self.dv, "subs", {}) or {}
         for camp in camps:
@@ -808,7 +811,7 @@ class Orchestrator:
             self._fail("allocate", exc)
 
     def _evidence(self, camps: list[dict], budget: float, contacts: int) -> list[dict]:
-        """Per-campaign evidence: simulated economics + aggregated option uncertainty + pilots."""
+        """Данные по каждой кампании: смоделированная экономика + агрегированная неопределённость вариантов + пилоты."""
         per: dict[str, dict] = {}
         try:
             res = self._simulate(camps, budget, contacts)
@@ -821,7 +824,7 @@ class Orchestrator:
             name = str(camp.get("campaign_name"))
             opts = [o for o in options if _orc_option_in_campaign(camp, o)]
             mean = sum(float(o.net_mean) for o in opts)
-            # options sharing (tariff, arpu, target, channel) share one posterior -> perfectly correlated
+            # варианты с общими (tariff, arpu, target, channel) имеют один апостериор -> полностью коррелированы
             grp: dict[tuple, float] = {}
             for o in opts:
                 g = (o.sub[0], o.sub[1], o.target, o.channel)
@@ -871,39 +874,63 @@ class Orchestrator:
             self.review = outcome
             names = {str(c.get("campaign_name")) for c in camps}
             veto = sorted({str(v) for v in (outcome.veto or []) if str(v) in names})
-            self.log.log("review", source=outcome.source, applied=bool(outcome.applied), veto=veto)
-            self.extra["review"] = {"source": outcome.source, "applied": bool(outcome.applied), "veto": veto,
-                                    "summary": str(outcome.summary)[:1000], "rationale": str(outcome.rationale)[:1000]}
-            if mode == "decide" and outcome.applied and veto and len(veto) < len(camps):
-                self.campaigns = await asyncio.to_thread(self._apply_veto, camps, veto, budget, contacts)
-                self.log.log("veto_applied", veto=veto, campaigns=len(self.campaigns))
+            requested = bool(outcome.applied)
+            outcome.applied = False
+            info = {"source": outcome.source, "applied": False, "veto": veto, "decision": "not_applied",
+                    "summary": str(outcome.summary)[:1000], "rationale": str(outcome.rationale)[:1000]}
+            self.extra["review"] = info
+            if mode == "decide" and requested and veto and len(veto) < len(camps):
+                try:
+                    candidate, plan, decision = await asyncio.to_thread(
+                        self._prepare_veto, camps, veto, budget, contacts)
+                    info.update(decision)
+                    if info["decision"] == "accepted":
+                        self.campaigns, self.plan = candidate, plan
+                        outcome.applied = info["applied"] = True
+                        self.log.log("veto_applied", veto=veto, campaigns=len(candidate))
+                except Exception as exc:
+                    info["decision"] = "error"
+                    info["error"] = type(exc).__name__
+                    self._fail("review_veto", exc)
+            self.log.log("review", source=outcome.source, applied=info["applied"], veto=veto,
+                         decision=info["decision"])
             self.stages["review"] = "ok"
         except Exception as exc:
             self._fail("review", exc)
 
-    def _apply_veto(self, camps: list[dict], veto: list[str], budget: float, contacts: int) -> list[dict]:
-        """Drop vetoed campaigns' options and re-pack; fall back to plain filtering."""
+    def _prepare_veto(self, camps: list[dict], veto: list[str], budget: float,
+                      contacts: int) -> tuple[list[dict], Any, dict]:
+        """Build and check the repacked veto candidate without mutating the current plan."""
         vset = set(veto)
         kept = [c for c in camps if str(c.get("campaign_name")) not in vset]
         vetoed = [c for c in camps if str(c.get("campaign_name")) in vset]
+        opts = [o for o in self.plan.options if not any(_orc_option_in_campaign(c, o) for c in vetoed)]
+        plan2 = Plan(options=opts, lambda_money=self.plan.lambda_money, lambda_reach=self.plan.lambda_reach,
+                     total_net_lcb=float(sum(o.net_lcb for o in opts)),
+                     total_cost=float(sum(o.cost for o in opts)),
+                     total_contacts=int(sum(o.n for o in opts)))
         if (self.extra.get("allocate") or {}).get("chosen") == "coarse":
-            return kept  # cell-wide campaigns are independent: dropping them is the re-pack
-        try:
-            opts = [o for o in self.plan.options if not any(_orc_option_in_campaign(c, o) for c in vetoed)]
-            plan2 = Plan(options=opts, lambda_money=self.plan.lambda_money, lambda_reach=self.plan.lambda_reach,
-                         total_net_lcb=float(sum(o.net_lcb for o in opts)),
-                         total_cost=float(sum(o.cost for o in opts)),
-                         total_contacts=int(sum(o.n for o in opts)))
-            repacked = self.packer.pack(plan2, self.model, budget, contacts)
-            if repacked:
-                self.plan = plan2
-                return list(repacked)
-        except Exception as exc:
-            self._fail("repack", exc)
-        return kept
+            candidate = kept
+        else:
+            candidate = list(self.packer.pack(plan2, self.model, budget, contacts))
+        before = self._simulate(camps, budget, contacts)
+        after = self._simulate(candidate, budget, contacts)
+        before_net = float(before.net) - self._pilot_overlap_gain(camps)
+        after_net = float(after.net) - self._pilot_overlap_gain(candidate)
+        finite = all(_orc_finite(v) for v in (before_net, after_net, after.gross, after.cost, after.contacts))
+        valid = (1 <= len(candidate) <= int(self.cfg.max_campaigns) and bool(after.within_limits)
+                 and 0 <= float(after.cost) <= budget + 1e-9 and 0 <= float(after.contacts) <= contacts
+                 and len(after.per_campaign) == len(candidate)
+                 and not any(pc.get("dropped") or pc.get("ratio_errors") or pc.get("capped_campaign")
+                             or pc.get("capped_reach") or pc.get("capped_money") for pc in after.per_campaign))
+        decision = ("non_finite" if not finite else "invalid_candidate" if not valid
+                    else "lower_expected_net" if after_net + 1e-9 < before_net else "accepted")
+        return candidate, plan2, {"decision": decision,
+                                  "baseline_net": before_net if _orc_finite(before_net) else None,
+                                  "candidate_net": after_net if _orc_finite(after_net) else None}
 
     def _guardrails(self, sim: Any) -> Any:
-        """Guardrails instance (passes the run log when the implementation accepts it)."""
+        """Экземпляр Guardrails (передаёт журнал запуска, если реализация его принимает)."""
         cls = self._c("Guardrails")
         try:
             return cls(self.cfg, self.dv, sim, log=self.log)
@@ -911,7 +938,7 @@ class Orchestrator:
             return cls(self.cfg, self.dv, sim)
 
     def _finalize(self, env: Any, campaigns: list[dict]) -> list[dict]:
-        """Guardrails validation (fallback: emergency campaign) + best-effort report."""
+        """Валидация через Guardrails (запасной вариант: аварийная кампания) + отчёт по возможности."""
         final: list[dict] = []
         try:
             budget, contacts = float(env.remaining_budget), int(env.remaining_contacts)
@@ -946,7 +973,7 @@ class Orchestrator:
 
 
 class Agent:
-    """Submission entry point: Agent().act(env) -> list of campaign dicts (never raises)."""
+    """Точка входа сабмита: Agent().act(env) -> список словарей кампаний (никогда не выбрасывает исключений)."""
 
     def __init__(
         self,
@@ -960,7 +987,7 @@ class Agent:
         self.last_orchestrator: Optional[Orchestrator] = None
 
     def act(self, env: Any) -> list[dict]:
-        """Run the full pipeline; on any failure return the guardrails fallback list."""
+        """Запускает полный конвейер; при любом сбое возвращает запасной список от guardrails."""
         try:
             _orc_load_dotenv()
         except Exception:
@@ -993,7 +1020,7 @@ class Agent:
             return self._fallback(cfg, orch, env)
 
     def _fallback(self, cfg: Config, orch: Orchestrator, env: Any) -> list[dict]:
-        """Guardrails fallback (empty plan validated) or an emergency no-op campaign."""
+        """Запасной вариант guardrails (валидированный пустой план) или аварийная пустая кампания."""
         try:
             dv = orch.dv if orch.dv is not None else orch._c("DataView")(env.customer_profile, env.tariffs, env.channels)
             sim = orch.sim if orch.sim is not None else orch._c("ScoreSimulator")(dv, env.customer_profile)

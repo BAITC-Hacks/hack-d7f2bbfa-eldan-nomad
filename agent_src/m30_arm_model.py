@@ -5,24 +5,24 @@ import math
 
 import numpy as np
 
-# Posterior of the per-arm lift ratio, per evaluation channel.
+# Апостериорное распределение lift ratio для каждого arm по каждому каналу оценки.
 #
-# Model (plan, "Posterior и перенос между каналами"):
-#   true ratio on channel c:  r_c = change * min(conv * mult_c, 1)
-#   prior base ratio (mult 1): mu ~= change * share, with share = c_hat (prior conversion estimate)
-#   => prior on channel c:     r_c ~ N(mu * k(c), (sd * k(c))^2),   k(c) = min(mult_c * c_hat, 1) / c_hat
-#   pilot on channel p:        y = r_p + eps,  eps ~ N(0, s^2 / n_actual)
-#   transfer p -> c:           r_c = r_p * k(c, p),  k(c, p) = min(mult_c * c_hat, 1) / min(mult_p * c_hat, 1)
+# Модель (план, "Posterior и перенос между каналами"):
+#   истинный ratio на канале c:  r_c = change * min(conv * mult_c, 1)
+#   априорный базовый ratio (mult 1): mu ~= change * share, где share = c_hat (априорная оценка конверсии)
+#   => prior на канале c:     r_c ~ N(mu * k(c), (sd * k(c))^2),   k(c) = min(mult_c * c_hat, 1) / c_hat
+#   пилот на канале p:        y = r_p + eps,  eps ~ N(0, s^2 / n_actual)
+#   перенос p -> c:           r_c = r_p * k(c, p),  k(c, p) = min(mult_c * c_hat, 1) / min(mult_p * c_hat, 1)
 #
-# Upscaling (k(c,p) > 1) is where saturation (min(., 1)) may bite with the true conversion, so the transfer
-# is made conservative in two ways:
-#   * mean: a *positive* y is multiplied by k_eff = kappa_up * k(c, p) (discount towards 0); negative
-#     evidence is transferred undiscounted (y * k) so harmful arms are never made to look less harmful;
-#   * variance: the transferred sd is noise_sd / sqrt(n) * k(c, p) (the *undiscounted* factor), i.e. the
-#     variance is inflated by 1/kappa_up^2 relative to a plain rescale by k_eff. This lowers the weight of
-#     upscaled evidence, reflecting uncertainty about the saturation point.
-# Downscaling (k <= 1) and same-channel evidence are transferred exactly (k_eff = k, sd * k).
-# Each evaluation channel gets its own Gaussian conjugate update (normal-normal, known noise variance).
+# При масштабировании вверх (k(c,p) > 1) может сработать насыщение (min(., 1)) при истинной конверсии, поэтому перенос
+# делается консервативным двумя способами:
+#   * среднее: *положительный* y умножается на k_eff = kappa_up * k(c, p) (дисконт к 0); отрицательные
+#     данные переносятся без дисконта (y * k), чтобы вредные arm никогда не выглядели менее вредными;
+#   * дисперсия: перенесённое sd = noise_sd / sqrt(n) * k(c, p) (*недисконтированный* множитель), т.е.
+#     дисперсия увеличена в 1/kappa_up^2 раз относительно простого масштабирования на k_eff. Это снижает вес
+#     масштабированных вверх данных, отражая неопределённость точки насыщения.
+# Масштабирование вниз (k <= 1) и данные того же канала переносятся точно (k_eff = k, sd * k).
+# Каждый канал оценки получает собственное гауссово сопряжённое обновление (normal-normal, известная дисперсия шума).
 
 _AM_MIN_SHARE = 1e-3
 _AM_MIN_SD = 1e-9
@@ -30,7 +30,7 @@ _AM_DEFAULT_SD = 0.25
 
 
 def _am_pos_float(x: Any, default: float) -> float:
-    """float(x) if finite and > 0, else default."""
+    """float(x) если конечно и > 0, иначе default."""
     try:
         v = float(x)
     except (TypeError, ValueError):
@@ -39,7 +39,7 @@ def _am_pos_float(x: Any, default: float) -> float:
 
 
 def _am_finite(x: Any, default: float) -> float:
-    """float(x) if finite, else default."""
+    """float(x) если конечно, иначе default."""
     try:
         v = float(x)
     except (TypeError, ValueError):
@@ -48,7 +48,7 @@ def _am_finite(x: Any, default: float) -> float:
 
 
 class ArmModel:
-    """Gaussian conjugate posterior of lift ratio per (arm, channel) with cross-channel transfer."""
+    """Гауссов сопряжённый posterior lift ratio по (arm, channel) с переносом между каналами."""
 
     def __init__(self, cfg: Config, dv: Any, priors: dict[ArmKey, Prior]):
         self.cfg = cfg
@@ -61,7 +61,7 @@ class ArmModel:
         self._noise_sd = _am_pos_float(getattr(cfg, "noise_sd", None), 0.804)
         kap = _am_pos_float(getattr(cfg, "kappa_up", None), 1.0)
         self._kappa_up = min(kap, 1.0)
-        # empirical-Bayes prior calibration (extension): prior mean *= beta, prior var += tau2 (base scale)
+        # калибровка prior методом эмпирического Байеса (расширение): prior mean *= beta, prior var += tau2 (базовая шкала)
         self._beta = 1.0
         self._tau2 = 0.0
         self.calibration: dict = {"beta": 1.0, "tau": 0.0, "n_arms": 0}
@@ -69,11 +69,11 @@ class ArmModel:
     # ------------------------------------------------------------------ data
     @property
     def observations(self) -> list[Observation]:
-        """All observations in add() order (a copy; mutate via add() only)."""
+        """Все наблюдения в порядке add() (копия; изменять только через add())."""
         return list(self._obs)
 
     def add(self, obs: Observation) -> None:
-        """Register a pilot observation (invalidates cached posteriors of its arm)."""
+        """Регистрирует наблюдение пилота (сбрасывает кэш posterior его arm)."""
         arm = tuple(obs.arm)
         self._obs.append(obs)
         self._by_arm.setdefault(arm, []).append(obs)
@@ -81,11 +81,11 @@ class ArmModel:
             del self._cache[key]
 
     def n_obs(self, arm: ArmKey) -> int:
-        """Number of observations recorded for an arm (any channel)."""
+        """Число наблюдений, записанных для arm (любой канал)."""
         return len(self._by_arm.get(tuple(arm), ()))
 
     def observations_for(self, arm: ArmKey) -> list[Observation]:
-        """Observations of one arm, in add() order (extension)."""
+        """Наблюдения одного arm в порядке add() (расширение)."""
         return list(self._by_arm.get(tuple(arm), ()))
 
     # ------------------------------------------------------------- transfer
@@ -102,7 +102,7 @@ class ArmModel:
         return m
 
     def share(self, arm: ArmKey) -> float:
-        """Prior conversion estimate c_hat used for channel transfer (extension)."""
+        """Априорная оценка конверсии c_hat для переноса между каналами (расширение)."""
         pr = self.priors.get(tuple(arm))
         s = pr.share if pr is not None else self.cfg.conv_prior_default
         try:
@@ -114,15 +114,15 @@ class ArmModel:
         return min(max(s, _AM_MIN_SHARE), 1.0)
 
     def k_channel(self, arm: ArmKey, channel: str) -> float:
-        """k(c) = min(mult_c * c_hat, 1) / c_hat: scale from base ratio (mult 1) to channel c (extension)."""
+        """k(c) = min(mult_c * c_hat, 1) / c_hat: масштаб от базового ratio (mult 1) к каналу c (расширение)."""
         s = self.share(arm)
         return min(self._mult(channel) * s, 1.0) / s
 
     def k_transfer(self, arm: ArmKey, eval_channel: str, pilot_channel: str) -> tuple[float, float]:
-        """(k_mean, k_sd) for moving evidence from pilot_channel to eval_channel (extension).
+        """(k_mean, k_sd) для переноса данных с pilot_channel на eval_channel (расширение).
 
-        k_mean includes the kappa_up discount when upscaling (applied to positive evidence only, see
-        _transfer); k_sd is the undiscounted factor.
+        k_mean включает дисконт kappa_up при масштабировании вверх (только для положительных данных, см.
+        _transfer); k_sd — недисконтированный множитель.
         """
         if eval_channel == pilot_channel:
             return 1.0, 1.0
@@ -134,7 +134,7 @@ class ArmModel:
 
     # ------------------------------------------------------------ posterior
     def prior_on(self, arm: ArmKey, channel: str) -> Posterior:
-        """Prior of the lift ratio on a channel (extension). Unknown arm -> Posterior(0, 0.25) on every channel."""
+        """Prior lift ratio на канале (расширение). Неизвестный arm -> Posterior(0, 0.25) на каждом канале."""
         arm = tuple(arm)
         pr = self.priors.get(arm)
         if pr is None:
@@ -145,12 +145,12 @@ class ArmModel:
         return Posterior(mu * k, max(sd * k, _AM_MIN_SD))
 
     def calibrate(self, min_arms: int = 3, beta_prior_sd: float = 0.5, max_tau: float = 0.25) -> dict:
-        """Check the history prior against pilot evidence (extension; empirical Bayes, deterministic).
+        """Проверяет исторический prior по данным пилотов (расширение; эмпирический Байес, детерминированно).
 
-        The history describes another population, so the prior may be biased or overconfident. Using the first
-        observation of every arm with a history prior: y_i = beta·m_i + e_i, var(e_i) = k_i²(sd_i² + tau²) +
-        noise_i². beta ~ N(1, beta_prior_sd²) is fitted by weighted least squares (clipped to [0, 2]); tau² by the
-        method of moments on the residuals (capped at max_tau²). Fewer than `min_arms` arms -> no calibration.
+        История описывает другую популяцию, поэтому prior может быть смещён или излишне уверен. По первому
+        наблюдению каждого arm с историческим prior: y_i = beta·m_i + e_i, var(e_i) = k_i²(sd_i² + tau²) +
+        noise_i². beta ~ N(1, beta_prior_sd²) оценивается взвешенным МНК (с обрезкой до [0, 2]); tau² — методом
+        моментов по остаткам (не больше max_tau²). Меньше `min_arms` arm -> без калибровки.
         """
         rows = []
         for arm in sorted(self._by_arm):
@@ -191,7 +191,7 @@ class ArmModel:
 
     def _transfer(self, arm: ArmKey, pilot_channel: str, y: float, n: float,
                   eval_channel: str) -> tuple[float, float] | None:
-        """Transferred (value, variance) of one observation on eval_channel, or None if unusable."""
+        """Перенесённые (value, variance) одного наблюдения на eval_channel или None, если оно непригодно."""
         try:
             y = float(y)
             n = float(n)
@@ -201,7 +201,7 @@ class ArmModel:
             return None
         km, ks = self.k_transfer(arm, eval_channel, pilot_channel)
         if y < 0:
-            km = ks  # never discount harmful evidence towards 0
+            km = ks  # никогда не дисконтируем вредные данные к 0
         sd = self._noise_sd / math.sqrt(n) * ks
         val = y * km
         if not math.isfinite(val) or not math.isfinite(sd):
@@ -210,13 +210,13 @@ class ArmModel:
 
     @staticmethod
     def _update(mean: float, var: float, y: float, obs_var: float) -> tuple[float, float]:
-        """Normal-normal conjugate update with known observation variance."""
+        """Сопряжённое normal-normal обновление при известной дисперсии наблюдения."""
         prec = 1.0 / var + 1.0 / obs_var
         new_var = 1.0 / prec
         return new_var * (mean / var + y / obs_var), new_var
 
     def posterior(self, arm: ArmKey, channel: str) -> Posterior:
-        """Posterior of the lift ratio of `arm` on `channel` (channel multiplier included)."""
+        """Posterior lift ratio для `arm` на `channel` (с учётом множителя канала)."""
         arm = tuple(arm)
         key = (arm, channel)
         hit = self._cache.get(key)
@@ -234,7 +234,7 @@ class ArmModel:
 
     def posterior_after(self, arm: ArmKey, pilot_channel: str, y: float, n: int,
                         eval_channel: str) -> Posterior:
-        """Posterior on eval_channel if a pilot on pilot_channel returned y with n customers (no mutation)."""
+        """Posterior на eval_channel, если пилот на pilot_channel вернул y при n клиентах (без мутации)."""
         arm = tuple(arm)
         cur = self.posterior(arm, eval_channel)
         t = self._transfer(arm, pilot_channel, y, n, eval_channel)
@@ -244,17 +244,17 @@ class ArmModel:
         return Posterior(float(mean), float(math.sqrt(var)))
 
     def predictive_sd(self, arm: ArmKey, pilot_channel: str, n: int) -> float:
-        """Sd of the predictive distribution of a pilot's y on pilot_channel (extension, for KG)."""
+        """Sd предиктивного распределения y пилота на pilot_channel (расширение, для KG)."""
         post = self.posterior(arm, pilot_channel)
         n = max(float(n), 1.0)
         return math.sqrt(post.sd ** 2 + self._noise_sd ** 2 / n)
 
     # --------------------------------------------------------------- option
     def option(self, sub: SubCell, target: str, channel: str) -> Option:
-        """Net-value option of contacting the whole sub-cell with (target, channel).
+        """Опция чистой ценности контакта всей sub-cell с (target, channel).
 
-        A channel whose cost cannot be read (or is negative / non-finite) yields a non-viable option
-        (cost = inf, net = -inf, p_pos = 0) instead of silently assuming a free channel.
+        Канал, стоимость которого нельзя прочитать (или она отрицательна / не конечна), даёт нежизнеспособную опцию
+        (cost = inf, net = -inf, p_pos = 0), вместо молчаливого допущения бесплатного канала.
         """
         key = tuple(sub.key)
         arm = (key[0], key[1], target)

@@ -1,27 +1,32 @@
 from __future__ import annotations  # bundle:strip
 from agent_src.contract import *  # noqa: F401,F403  bundle:strip
-# PilotPlanner: knowledge-gradient choice of the next pilot (arm x channel x size x pilot sub-cell).
+# PilotPlanner: выбор следующего пилота по градиенту знаний (knowledge gradient)
+# (рука x канал x размер x подъячейка пилота).
 #
-# Value of a cell V = sum over its sub-cells of the value of the option the allocator would pick:
-#   decision per sub = argmax over admissible options of  net_lcb - lm*cost - lr*n   (or nothing if <= 0),
-#   admissible       = net_lcb > 0 and p_pos >= p_min (push: p_min_push),
-#   realised value   = net_mean - lm*cost - lr*n of the chosen option (risk-neutral valuation of a risk-averse rule).
-# KG(arm, p, n) = E_y[V_after(y)] - V_before, y ~ N(m_p, sd_p^2 + s^2/n) integrated with Gauss-Hermite nodes;
-# the posterior after y comes from model.posterior_after (linear in y for the Gaussian model -> 2 calls per channel).
-# Total score = KG + immediate - n*cost_p*(1 + lm) - lr*n + confirm bonus, where immediate is the pilot's own
-# expected incremental lift over the final plan chosen after y (pilot customers keep max(pilot lift, final lift)),
-# integrated over the same Gauss-Hermite nodes, scaled by the expected share of not-yet-piloted customers.
-# Eligible targets mirror the allocator: top `top_targets_per_cell` per cell by max_c mean_c / mult_c (re-ranked
-# per node for the piloted arm). Pilot unit = a sub-cell (smallest with enough unused contacts).
-# Stop: best total <= 0, pilots/reserve/time exhausted. With zero pilots done a pilot is always returned.
+# Ценность ячейки V = сумма по её подъячейкам ценности варианта, который выбрал бы аллокатор:
+#   решение по подъячейке  = argmax по допустимым вариантам величины  net_lcb - lm*cost - lr*n   (или ничего, если <= 0),
+#   допустимый вариант     = net_lcb > 0 и p_pos >= p_min (push: p_min_push),
+#   реализованная ценность = net_mean - lm*cost - lr*n выбранного варианта (риск-нейтральная оценка
+#                            правила, избегающего риска).
+# KG(arm, p, n) = E_y[V_after(y)] - V_before, y ~ N(m_p, sd_p^2 + s^2/n), интегрирование по узлам Гаусса-Эрмита;
+# апостериор после y берётся из model.posterior_after: отдельные наклоны для y < 0 и y >= 0, 3 вызова на канал.
+# Итоговая оценка = KG + immediate - n*cost_p*(1 + lm) - lr*n + бонус подтверждения, где immediate — собственный
+# ожидаемый прирост лифта пилота сверх финального плана, выбранного после y (клиенты пилота сохраняют
+# max(лифт пилота, финальный лифт)), проинтегрированный по тем же узлам Гаусса-Эрмита и умноженный на ожидаемую
+# долю клиентов, ещё не охваченных пилотами.
+# Допустимые цели повторяют логику аллокатора: первые `top_targets_per_cell` в ячейке по max_c mean_c / mult_c
+# (с переранжированием в каждом узле для пилотируемой руки). Единица пилота — подъячейка (наименьшая с
+# достаточным числом неиспользованных контактов).
+# Остановка: лучшая итоговая оценка <= 0 либо исчерпаны пилоты/резерв/время. Если не проведено ни одного
+# пилота, пилот возвращается всегда.
 
 import math
 import time
 
 import numpy as np
 
-_KG_CONFIRM_FRAC = 0.25  # winner's-curse bonus = frac * min(net_total, sd_total) of the committed paid plan
-_KG_CONFIRM_BUDGET_FRAC = 0.10  # paid plan of an arm above this share of the initial budget needs confirmation
+_KG_CONFIRM_FRAC = 0.25  # бонус против «проклятия победителя» = frac * min(net_total, sd_total) зафиксированного платного плана
+_KG_CONFIRM_BUDGET_FRAC = 0.10  # платный план руки дороже этой доли исходного бюджета требует подтверждения
 _KG_CONFIRM_MIN_PILOTS = 2
 _KG_CONFIRM_SD_RATIO = 0.5
 _KG_MAX_FAILURES = 2
@@ -29,7 +34,7 @@ _KG_EPS = 1e-9
 
 
 def _kg_norm_ppf(p: float) -> float:
-    """Inverse standard normal CDF by bisection on norm_cdf (scalar, called once per planner)."""
+    """Обратная функция стандартного нормального распределения бисекцией по norm_cdf (скаляр, вызывается один раз на планировщик)."""
     if p <= 0.0:
         return -math.inf
     if p >= 1.0:
@@ -46,34 +51,34 @@ def _kg_norm_ppf(p: float) -> float:
 
 @dataclass
 class _KGCellEval:
-    """Current decision in one cell: per-target best option per sub + top-2 targets per sub."""
+    """Текущее решение в одной ячейке: лучший вариант каждой цели по подъячейкам + две лучшие цели по подъячейкам."""
 
     targets: list
     t_index: dict
-    n: np.ndarray  # (S,) contacts per sub
+    n: np.ndarray  # (S,) контактов в подъячейке
     sum_p: np.ndarray  # (S,)
     mean_p: np.ndarray  # (S,)
-    score: np.ndarray  # (T, S) best admissible score per target (-inf = none)
-    value: np.ndarray  # (T, S) mean-valued score of that option
-    gross_pc: np.ndarray  # (T, S) posterior-mean gross per contact of that option
-    chan: np.ndarray  # (T, S) channel index of that option
+    score: np.ndarray  # (T, S) лучшая допустимая оценка по цели (-inf = нет)
+    value: np.ndarray  # (T, S) оценка этого варианта по среднему
+    gross_pc: np.ndarray  # (T, S) апостериорное среднее валового дохода на контакт для этого варианта
+    chan: np.ndarray  # (T, S) индекс канала этого варианта
     net: np.ndarray  # (T, S)
     net_sd: np.ndarray  # (T, S)
-    cost: np.ndarray  # (T, S) money cost of that option
-    top1: np.ndarray  # (S,) chosen target index or -1
+    cost: np.ndarray  # (T, S) денежная стоимость этого варианта
+    top1: np.ndarray  # (S,) индекс выбранной цели или -1
     top1_score: np.ndarray
     top1_value: np.ndarray
-    top2_score: np.ndarray  # best score among targets != top1 (or -inf)
+    top2_score: np.ndarray  # лучшая оценка среди целей != top1 (или -inf)
     top2_value: np.ndarray
     v_before: float
-    proxy: np.ndarray = None  # (T,) allocator ranking score max_c mean_c / mult_c
-    rank: list = None  # target indices by (-proxy, index)
-    elig: np.ndarray = None  # (T,) bool: in the allocator's top_targets_per_cell
+    proxy: np.ndarray = None  # (T,) оценка ранжирования аллокатора max_c mean_c / mult_c
+    rank: list = None  # индексы целей, упорядоченные по (-proxy, index)
+    elig: np.ndarray = None  # (T,) bool: входит в top_targets_per_cell аллокатора
 
 
 @dataclass
 class _KGCand:
-    """One evaluated pilot candidate."""
+    """Один оценённый кандидат в пилоты."""
 
     arm: tuple
     channel: str
@@ -89,7 +94,7 @@ class _KGCand:
 
 
 class PilotPlanner:
-    """Knowledge-gradient pilot planner with reserves, per-arm caps and a winner's-curse confirm bonus."""
+    """Планировщик пилотов по градиенту знаний с резервами, лимитами на руку и бонусом подтверждения против «проклятия победителя»."""
 
     def __init__(self, cfg: Config, dv: Any, model: Any, allocator: Any) -> None:
         self.cfg = cfg
@@ -100,7 +105,7 @@ class PilotPlanner:
         self._pilots_per_arm: dict = {}
         self._used_subs: dict = {}
         self._failures: dict = {}
-        self._unavailable: set = set()  # (arm, sub-or-None)
+        self._unavailable: set = set()  # (рука, подъячейка или None)
         self._dead_arms: set = set()
         self._n_done = 0
         self._money_spent = 0.0
@@ -115,7 +120,7 @@ class PilotPlanner:
         for c in self._channels:
             try:
                 m = float(dv.mult(c))
-            except Exception:  # noqa: BLE001 - duck-typed DataView
+            except Exception:  # noqa: BLE001 - DataView с утиной типизацией
                 m = 1.0
             mults.append(m if math.isfinite(m) and m > 0 else 1.0)
         self._ch_mult = np.array(mults, dtype=float)
@@ -141,10 +146,10 @@ class PilotPlanner:
             )
             self._targets[ck] = list(dv.targets_for(ck))
 
-    # ------------------------------------------------------------------ public API
+    # ------------------------------------------------------------------ публичный API
 
     def set_weights(self, w: dict) -> None:
-        """LLM plausibility weights per arm (default 1.0); used only for candidate ranking."""
+        """Веса правдоподобия от LLM по рукам (по умолчанию 1.0); используются только для ранжирования кандидатов."""
         self._w = {}
         for k, v in (w or {}).items():
             try:
@@ -156,21 +161,21 @@ class PilotPlanner:
 
     @property
     def pilots_per_arm(self) -> dict:
-        """Pilots registered per arm (copy)."""
+        """Зарегистрированные пилоты по рукам (копия)."""
         return dict(self._pilots_per_arm)
 
     @property
     def used_subs(self) -> dict:
-        """Contacts consumed by registered pilots per sub-cell (copy)."""
+        """Контакты, израсходованные зарегистрированными пилотами, по подъячейкам (копия)."""
         return dict(self._used_subs)
 
     @property
     def unavailable(self) -> set:
-        """(arm, sub-or-None) pairs that failed in run_pilot (copy)."""
+        """Пары (рука, подъячейка или None), завершившиеся ошибкой в run_pilot (копия)."""
         return set(self._unavailable)
 
     def register_result(self, spec: PilotSpec, result: dict) -> None:
-        """Bookkeeping after env.run_pilot: usage/counters on success, unavailability on error."""
+        """Учёт после env.run_pilot: расход и счётчики при успехе, пометка недоступности при ошибке."""
         arm = tuple(spec.arm)
         if not isinstance(result, dict) or "error" in result:
             self._unavailable.add((arm, spec.sub))
@@ -199,10 +204,10 @@ class PilotPlanner:
         self.history.append({"arm": arm, "channel": spec.channel, "sub": spec.sub, "n": n, "cost": cost})
 
     def next_pilot(self, state: ExploreState) -> Optional[PilotSpec]:
-        """Best pilot by KG total score, or None to stop exploring."""
+        """Лучший пилот по итоговой оценке KG или None для остановки исследования."""
         t_start = time.monotonic()
-        # Calibration updates every arm, including arms without a new observation.
-        # Keep memoization within a decision only so all candidates use fresh evidence.
+        # Калибровка обновляет все руки, включая руки без нового наблюдения.
+        # Мемоизация действует только в пределах одного решения, чтобы все кандидаты использовали свежие данные.
         self._post_cache.clear()
         zero_done = self._zero_done(state)
         n_done = max(self._n_done, sum(int(v) for v in (state.pilots_per_arm or {}).values()))
@@ -227,10 +232,10 @@ class PilotPlanner:
             return self._stop("no_feasible_pilot")
         return self._spec(forced, "forced_first")
 
-    # ------------------------------------------------------------------ bookkeeping helpers
+    # ------------------------------------------------------------------ вспомогательные методы учёта
 
     def _zero_done(self, state: ExploreState) -> bool:
-        """True when no pilot has been run yet (by any account)."""
+        """True, если ещё не проведено ни одного пилота (по любому из счётчиков)."""
         if self._n_done > 0:
             return False
         if sum(int(v) for v in (state.pilots_per_arm or {}).values()) > 0:
@@ -239,7 +244,7 @@ class PilotPlanner:
             return False
         try:
             return len(self.model.observations) == 0
-        except Exception:  # noqa: BLE001 - duck-typed model
+        except Exception:  # noqa: BLE001 - модель с утиной типизацией
             return True
 
     def _arm_pilots(self, state: ExploreState, arm: tuple) -> int:
@@ -260,13 +265,13 @@ class PilotPlanner:
             if not (math.isfinite(lm) and math.isfinite(lr)):
                 return 0.0, 0.0
             return max(0.0, lm), max(0.0, lr)
-        except Exception:  # noqa: BLE001 - allocator failure must not stop planning
+        except Exception:  # noqa: BLE001 - сбой аллокатора не должен останавливать планирование
             return 0.0, 0.0
 
-    # ------------------------------------------------------------------ posteriors
+    # ------------------------------------------------------------------ апостериорные распределения
 
     def _post(self, arm: tuple, ch: str) -> tuple:
-        """(mean, sd) cached within one decision and invalidated on new arm observations."""
+        """(mean, sd), кэшируемые в пределах одного решения и сбрасываемые при новых наблюдениях по руке."""
         try:
             nobs = int(self.model.n_obs(arm))
         except Exception:  # noqa: BLE001
@@ -287,34 +292,42 @@ class PilotPlanner:
         self._post_cache[key] = (nobs, m, s)
         return m, s
 
-    def _after_linear(self, arm: tuple, p_ch: str, n: int, y_lo: float, y_hi: float) -> Optional[tuple]:
-        """Posterior after y on p_ch for each eval channel as (mean(y_lo), slope, sd) arrays, or None."""
+    def _after_piecewise(self, arm: tuple, p_ch: str, n: int) -> Optional[tuple]:
+        """Апостериор после y в виде массивов (mean(0), отрицательный наклон, положительный наклон, sd).
+
+        ArmModel дисконтирует положительные данные при масштабировании между каналами,
+        но переносит отрицательные без дисконта. Каждая половина аффинна с тем же
+        свободным членом и дисперсией, поэтому три пробы точно воспроизводят каждый
+        узел GH без подгонки одной прямой через излом в нуле.
+        """
         C = len(self._channels)
         a = np.zeros(C)
-        b = np.zeros(C)
+        b_neg = np.zeros(C)
+        b_pos = np.zeros(C)
         s = np.zeros(C)
-        dy = y_hi - y_lo
         for j, c in enumerate(self._channels):
             try:
-                lo = self.model.posterior_after(arm, p_ch, y_lo, n, c)
-                hi = self.model.posterior_after(arm, p_ch, y_hi, n, c)
-                lo_m, hi_m, sd = float(lo.mean), float(hi.mean), float(hi.sd)
+                lo = self.model.posterior_after(arm, p_ch, -1.0, n, c)
+                zero = self.model.posterior_after(arm, p_ch, 0.0, n, c)
+                hi = self.model.posterior_after(arm, p_ch, 1.0, n, c)
+                lo_m, zero_m, hi_m, sd = float(lo.mean), float(zero.mean), float(hi.mean), float(zero.sd)
             except Exception:  # noqa: BLE001
                 return None
-            if not (math.isfinite(lo_m) and math.isfinite(hi_m) and math.isfinite(sd)):
+            if not all(math.isfinite(v) for v in (lo_m, zero_m, hi_m, sd)):
                 return None
-            a[j] = lo_m
-            b[j] = (hi_m - lo_m) / dy if dy > 0 else 0.0
+            a[j] = zero_m
+            b_neg[j] = zero_m - lo_m
+            b_pos[j] = hi_m - zero_m
             s[j] = max(sd, 0.0)
-        return a, b, s
+        return a, b_neg, b_pos, s
 
-    # ------------------------------------------------------------------ option arithmetic
+    # ------------------------------------------------------------------ арифметика вариантов
 
     def _best_over_channels(self, M: np.ndarray, D: np.ndarray, n: np.ndarray, sp: np.ndarray,
                             lm: float, lr: float) -> tuple:
-        """Best admissible channel per (K, S) given posterior means M (K,C) and sds D (K,C).
+        """Лучший допустимый канал для каждой пары (K, S) при апостериорных средних M (K,C) и отклонениях D (K,C).
 
-        Returns score, value, chan, net, net_sd, cost, gross_pc arrays of shape (K, S).
+        Возвращает массивы score, value, chan, net, net_sd, cost, gross_pc формы (K, S).
         """
         cost_c = self._ch_cost[None, :, None]
         net = M[:, :, None] * sp[None, None, :] - cost_c * n[None, None, :]
@@ -363,8 +376,8 @@ class PilotPlanner:
                                np.zeros((T, S), dtype=int), z, z, z, np.full(S, -1), np.full(S, -np.inf), zs,
                                np.full(S, -np.inf), zs, 0.0, proxy, rank, elig)
         score, value, chan, net, nsd, cost, gross_pc = self._best_over_channels(M, D, n, sp, lm, lr)
-        score_e = np.where(elig[:, None], score, -np.inf)  # only allocator-eligible targets compete
-        order = np.argsort(-score_e, axis=0, kind="stable")  # ties -> lower target index
+        score_e = np.where(elig[:, None], score, -np.inf)  # конкурируют только цели, допустимые для аллокатора
+        order = np.argsort(-score_e, axis=0, kind="stable")  # при равенстве -> меньший индекс цели
         cols = np.arange(S)
         i1 = order[0]
         s1 = score_e[i1, cols]
@@ -384,23 +397,23 @@ class PilotPlanner:
 
     @staticmethod
     def _competitor(ev: _KGCellEval, idx: list) -> tuple:
-        """Best admissible option per sub among targets `idx`: (score, value, gross_pc) arrays of shape (S,)."""
+        """Лучший допустимый вариант по подъячейкам среди целей `idx`: массивы (score, value, gross_pc) формы (S,)."""
         S = len(ev.n)
         if not idx or S == 0:
             return np.full(S, -np.inf), np.zeros(S), np.full(S, np.nan)
         cols = np.arange(S)
         sub_sc = ev.score[idx]
-        j = np.argmax(sub_sc, axis=0)  # ties -> earlier in idx (allocator rank order)
+        j = np.argmax(sub_sc, axis=0)  # при равенстве -> более ранний в idx (порядок ранжирования аллокатора)
         s = sub_sc[j, cols]
         ok = np.isfinite(s) & (s > 0)
         rows = np.asarray(idx)[j]
         return (np.where(ok, s, -np.inf), np.where(ok, ev.value[rows, cols], 0.0),
                 np.where(ok, ev.gross_pc[rows, cols], np.nan))
 
-    # ------------------------------------------------------------------ candidates
+    # ------------------------------------------------------------------ кандидаты
 
     def _rank_arms(self, state: ExploreState) -> list:
-        """Top cfg.top_arms arms by sum_p_cell * max_c(mean + sd) * w, excluding capped/failed arms."""
+        """Первые cfg.top_arms рук по sum_p_cell * max_c(mean + sd) * w, без рук, достигших лимита или завершившихся ошибкой."""
         scored = []
         cap = int(self.cfg.max_pilots_per_arm)
         for ck in self._cells:
@@ -412,14 +425,14 @@ class PilotPlanner:
                     continue
                 ucb = max(sum(self._post(arm, c)) for c in self._channels) if self._channels else 0.0
                 w = self._w.get(arm, 1.0)
-                s = sp * ucb * (w if ucb >= 0 else 1.0 / w)  # a weight > 1 always promotes the arm
+                s = sp * ucb * (w if ucb >= 0 else 1.0 / w)  # вес > 1 всегда повышает приоритет руки
                 if math.isfinite(s):
                     scored.append((-s, arm))
         scored.sort()
         return [a for _, a in scored[: max(0, int(self.cfg.top_arms))]]
 
     def _limits(self, state: ExploreState, relax: bool) -> tuple:
-        """(money_cap, reach_cap) available for the next pilot."""
+        """(money_cap, reach_cap), доступные для следующего пилота."""
         money = max(0.0, float(state.remaining_budget))
         reach = max(0, int(state.remaining_contacts))
         if relax:
@@ -431,7 +444,7 @@ class PilotPlanner:
         return max(0.0, min(money, m_res)), max(0, min(reach, r_res))
 
     def _sub_avail(self, state: ExploreState, arm: tuple, ck: tuple) -> list:
-        """[(avail, key, sub_index, sub)] of sub-cells still usable for this arm."""
+        """[(avail, key, sub_index, sub)] подъячеек, ещё пригодных для этой руки."""
         out = []
         for si, sc in enumerate(self._cell_subs[ck]):
             if (arm, sc.key) in self._unavailable:
@@ -441,7 +454,7 @@ class PilotPlanner:
 
     def _pilot_sub(self, state: ExploreState, arm: tuple, ck: tuple, n: int,
                    avail: Optional[list] = None) -> Optional[tuple]:
-        """(sub_key, filters, sub_index) of the smallest sub-cell with >= n unused contacts, or None."""
+        """(sub_key, filters, sub_index) наименьшей подъячейки с >= n неиспользованными контактами или None."""
         best = None
         for av, key, si, sc in (avail if avail is not None else self._sub_avail(state, arm, ck)):
             if av >= n and (best is None or (av, key) < best[0]):
@@ -460,9 +473,9 @@ class PilotPlanner:
         return sorted(sizes)
 
     def _evaluate(self, state: ExploreState, lm: float, lr: float, relax: bool, t_start: float) -> list:
-        """Evaluate the fixed top_arms shortlist; CPU speed must not change the candidates.
+        """Оценивает фиксированный шорт-лист top_arms; скорость CPU не должна влиять на набор кандидатов.
 
-        The orchestrator still enforces the overall run deadline between pilot decisions.
+        Общий дедлайн запуска по-прежнему контролирует оркестратор между решениями о пилотах.
         """
         money_cap, reach_cap = self._limits(state, relax)
         if reach_cap < int(self.cfg.min_pilot):
@@ -530,21 +543,22 @@ class PilotPlanner:
     def _kg(self, arm: tuple, ev: _KGCellEval, t: int, pj: int, p_ch: str, n: int, m_p: float, sd_p: float,
             s2: float, comp_in: tuple, comp_out: tuple, thr: tuple, si: int, fresh: float,
             lm: float, lr: float) -> Optional[tuple]:
-        """(KG, immediate) of a pilot of size n on channel p_ch in sub si; KG = E_y[V_after] - V_before.
+        """(KG, immediate) пилота размера n на канале p_ch в sub si; KG = E_y[V_after] - V_before.
 
-        comp_in / comp_out: best competitor per sub when the arm is / is not in the allocator's top-k targets;
-        thr = (proxy, index) of the k-th other target (the arm is eligible iff it ranks above it).
+        comp_in / comp_out: лучший конкурент на sub, когда arm входит / не входит в top-k targets allocator;
+        thr = (proxy, index) k-го другого target (arm допустим тогда и только тогда, когда ранжируется выше него).
         """
         pilot_mp = float(ev.mean_p[si])
         pred_sd = math.sqrt(max(sd_p, 0.0) ** 2 + s2 / max(n, 1))
         if not math.isfinite(pred_sd) or pred_sd <= 0:
             return 0.0, n * fresh * m_p * pilot_mp
-        lin = self._after_linear(arm, p_ch, n, m_p - pred_sd, m_p + pred_sd)
+        lin = self._after_piecewise(arm, p_ch, n)
         if lin is None:
             return None
-        a, b, sd_after = lin
+        a, b_neg, b_pos, sd_after = lin
         ys = m_p + pred_sd * self._gh_x  # (G,)
-        M = a[None, :] + b[None, :] * (ys[:, None] - (m_p - pred_sd))  # (G, C)
+        b = np.where(ys[:, None] < 0.0, b_neg[None, :], b_pos[None, :])
+        M = a[None, :] + b * ys[:, None]  # (G, C)
         D = np.broadcast_to(sd_after[None, :], M.shape)
         sc, val, _, _, _, _, gpc = self._best_over_channels(M, D, ev.n, ev.sum_p, lm, lr)  # (G, S)
         prox = (M / self._ch_mult[None, :]).max(axis=1)  # (G,)
@@ -559,7 +573,7 @@ class PilotPlanner:
         comp_b = comp_in if bool(ev.elig[t]) else comp_out
         wins_b = bool(ev.elig[t]) & (ev.score[t] > 0) & (ev.score[t] > comp_b[0])
         v_before = float(np.where(wins_b, ev.value[t], comp_b[1]).sum())
-        # immediate: pilot customers keep max(pilot lift, final lift of the plan chosen after y)
+        # immediate: клиенты пилота сохраняют max(pilot lift, final lift плана, выбранного после y)
         final_pc = np.where(wins[:, si], gpc[:, si], o_gpc[:, si])  # (G,) nan = sub not deployed
         pilot_pc = M[:, pj] * pilot_mp
         inc = np.where(np.isfinite(final_pc), np.maximum(0.0, pilot_pc - np.nan_to_num(final_pc)), pilot_pc)
@@ -568,7 +582,7 @@ class PilotPlanner:
 
     def _confirm_info(self, state: ExploreState, arm: tuple, ev: _KGCellEval, t: int,
                       init_budget: float) -> Optional[tuple]:
-        """(bonus_amount, deployment_channel) if the arm's committed paid plan needs confirmation."""
+        """(bonus_amount, deployment_channel), если зафиксированный платный план руки требует подтверждения."""
         if len(ev.n) == 0:
             return None
         mine = ev.top1 == t
@@ -590,7 +604,7 @@ class PilotPlanner:
         dom = max(sorted(ch_cost), key=lambda k: ch_cost[k])
         return _KG_CONFIRM_FRAC * min(net_total, sd_total), self._channels[dom]
 
-    # ------------------------------------------------------------------ selection
+    # ------------------------------------------------------------------ выбор
 
     @staticmethod
     def _cand_key(c: _KGCand) -> tuple:
@@ -605,14 +619,14 @@ class PilotPlanner:
         return best
 
     def _pick_cheapest(self, cands: list) -> Optional[_KGCand]:
-        """Informative first (kg > 0), then cheapest money, then best total."""
+        """Сначала информативные (kg > 0), затем самые дешёвые по деньгам, затем с лучшей итоговой оценкой."""
         if not cands:
             return None
         return min(cands, key=lambda c: (0 if c.kg > _KG_EPS else 1, round(c.cost_money, 6), -c.total,
                                          self._cand_key(c)))
 
     def _fallback_candidate(self, state: ExploreState) -> Optional[_KGCand]:
-        """Minimal feasible pilot (largest cell, first target, cheapest affordable channel)."""
+        """Минимальный допустимый пилот (крупнейшая ячейка, первая цель, самый дешёвый доступный канал)."""
         money, reach = self._limits(state, relax=True)
         n = int(self.cfg.min_pilot)
         if reach < n or not self._channels:

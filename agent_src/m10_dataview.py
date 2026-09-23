@@ -1,6 +1,6 @@
 from __future__ import annotations  # bundle:strip
 from agent_src.contract import *  # noqa: F401,F403  bundle:strip
-# m10 DataView: cells / sub-cells of the audience, tariff and channel tables.
+# m10 DataView: ячейки / подячейки аудитории, таблицы тарифов и каналов.
 # DataView: ячейки и подячейки аудитории, справочник тарифов и каналов.
 import os
 import re
@@ -14,13 +14,13 @@ _DV_HISTORY_COLS: tuple[str, ...] = ("AVG_ARPU_PREV_3M", "AVG_ARPU_NEXT_3M", "ta
 
 
 def _dv_natural_key(code: str) -> tuple:
-    """Natural sort key: 'tariff_2' < 'tariff_10'."""
+    """Ключ естественной сортировки: 'tariff_2' < 'tariff_10'."""
     parts = re.split(r"(\d+)", str(code))
     return tuple((0, int(p), "") if p.isdigit() else (1, 0, p) for p in parts)
 
 
 def _dv_py(v: Any) -> Any:
-    """Convert numpy / pandas scalars to plain Python values (NaN -> None)."""
+    """Преобразует скаляры numpy / pandas в обычные значения Python (NaN -> None)."""
     if v is None:
         return None
     if isinstance(v, np.generic):
@@ -36,22 +36,22 @@ def _dv_py(v: Any) -> Any:
 
 
 class DataView:
-    """Read-only aggregated view of env.customer_profile / env.tariffs / env.channels."""
+    """Агрегированное представление только для чтения над env.customer_profile / env.tariffs / env.channels."""
 
     def __init__(
         self, profile: pd.DataFrame, tariffs: pd.DataFrame, channels: dict, allow_extra_channels: bool = False
     ):
-        """allow_extra_channels=False keeps only CHANNELS_ORDER (the organizer scorer drops other channels)."""
+        """allow_extra_channels=False оставляет только CHANNELS_ORDER (скорер организаторов отбрасывает прочие каналы)."""
         self._channels_raw: dict = {str(k): dict(v) for k, v in dict(channels).items()}
         self._build_tariffs(tariffs)
         self._build_channels(allow_extra_channels)
         self._build_cells(profile)
 
-    # ------------------------------------------------------------------ tariffs / channels
+    # ------------------------------------------------------------------ тарифы / каналы
     def _build_tariffs(self, tariffs: pd.DataFrame) -> None:
         t = tariffs.copy()
         t = t[t["tariff_plan_code"].notna()]
-        # Keep raw codes (no strip): the organizer validates target_tariff against the raw values.
+        # Сохраняем исходные коды (без strip): организаторы проверяют target_tariff по исходным значениям.
         t["tariff_plan_code"] = t["tariff_plan_code"].astype(str)
         t = t[t["tariff_plan_code"].str.strip() != ""]
         t = t.drop_duplicates("tariff_plan_code", keep="first")
@@ -73,7 +73,7 @@ class DataView:
         extra = sorted(present - set(CHANNELS_ORDER)) if allow_extra else []
         self.channels: list[str] = ordered + extra
 
-    # ------------------------------------------------------------------ cells
+    # ------------------------------------------------------------------ ячейки
     def _build_cells(self, profile: pd.DataFrame) -> None:
         cols = list(_DV_SEG_COLS)
         df = pd.DataFrame(
@@ -83,19 +83,19 @@ class DataView:
             }
         )
         for c in cols:
-            # Plain object dtype with NaN for missing: robust across str/category/object dtypes.
+            # Обычный object dtype с NaN для пропусков: устойчиво для dtype str/category/object.
             s = profile[c]
             mask = s.isna()
             df[c] = s.astype(object).where(~mask, np.nan).map(lambda v: v if v != v else str(v))
         seg_na = df[cols].isna()
         self.n_nan: int = int(seg_na.any(axis=1).sum())
 
-        # Cells: rows with valid current_tariff + arpu_segment.
+        # Ячейки: строки с корректными current_tariff + arpu_segment.
         cell_df = df[~seg_na[cols[0]] & ~seg_na[cols[1]]]
         cagg = cell_df.groupby(cols[:2], sort=True, observed=True, dropna=True)["predicted_arpu"].agg(["size", "sum"])
 
-        # Sub-cells: rows with all four segments valid and a finite integral ID, sorted by keys then ID.
-        # Duplicate IDs keep the first row (organizer gross lift is deduplicated per ID_NUMBER).
+        # Подячейки: строки со всеми четырьмя корректными сегментами и конечным целым ID, сортировка по ключам, затем по ID.
+        # При дубликатах ID остаётся первая строка (gross lift организаторов дедуплицируется по ID_NUMBER).
         idv = df["ID_NUMBER"].to_numpy(dtype=float)
         id_ok = np.isfinite(idv) & (np.floor(idv) == idv) & (np.abs(idv) < 2.0**62)
         self.n_bad_id: int = int((~id_ok).sum())
@@ -112,7 +112,7 @@ class DataView:
             skey: SubKey = tuple(str(x) for x in key)  # type: ignore[assignment]
             ids = ids_all[idx]
             p = p_all[idx]
-            order = np.argsort(ids, kind="mergesort")  # already sorted; cheap safety
+            order = np.argsort(ids, kind="mergesort")  # уже отсортировано; дешёвая страховка
             ids, p = ids[order], p[order]
             n = int(ids.size)
             s = float(p.sum())
@@ -131,32 +131,32 @@ class DataView:
                 key=ckey, n=n, sum_p=s, mean_p=s / n if n else 0.0, subs=sorted(subs_by_cell.get(ckey, []))
             )
 
-    # ------------------------------------------------------------------ accessors
+    # ------------------------------------------------------------------ методы доступа
     def tariff_info(self, code: str) -> dict:
-        """All dict_tariff columns of the tariff row (KeyError if unknown)."""
+        """Все столбцы dict_tariff для строки тарифа (KeyError, если тариф неизвестен)."""
         return dict(self._tariff_rows[code])
 
     def cost(self, ch: str) -> float:
-        """Cost per contact of a channel."""
+        """Стоимость одного контакта в канале."""
         return float(self._channels_raw[ch]["cost_per_contact"])
 
     def mult(self, ch: str) -> float:
-        """Conversion multiplier of a channel."""
+        """Множитель конверсии канала."""
         return float(self._channels_raw[ch]["conversion_multiplier"])
 
     def cell_of(self, sub: SubKey) -> CellKey:
-        """Cell key of a sub-cell key."""
+        """Ключ ячейки для ключа подячейки."""
         return (sub[0], sub[1])
 
     def subs_of(self, cell: CellKey) -> list[SubCell]:
-        """Sub-cells of a cell, sorted by key."""
+        """Подячейки ячейки, отсортированные по ключу."""
         c = self.cells.get(cell)
         if c is None:
             return []
         return [self.subs[k] for k in c.subs]
 
     def targets_for(self, cell: CellKey) -> list[str]:
-        """Candidate target tariffs for a cell (all tariffs except the current one)."""
+        """Кандидаты в целевые тарифы для ячейки (все тарифы, кроме текущего)."""
         return [t for t in self.tariff_codes if t != cell[0]]
 
 
@@ -171,7 +171,7 @@ def _dv_candidates(search_dirs: list[str], names: tuple[str, ...]) -> list[str]:
 
 
 def load_history(search_dirs: list[str]) -> pd.DataFrame | None:
-    """Load change_tariff history from <dir>/data/ or <dir>/; None if unavailable. Never raises."""
+    """Загружает историю change_tariff из <dir>/data/ или <dir>/; None, если недоступна. Никогда не бросает исключений."""
     try:
         for path in _dv_candidates(search_dirs, (os.path.join("data", "change_tariff.csv"), "change_tariff.csv")):
             try:
@@ -187,7 +187,7 @@ def load_history(search_dirs: list[str]) -> pd.DataFrame | None:
 
 
 def load_tariff_descriptions(search_dirs: list[str]) -> dict[str, str]:
-    """Map tariff_plan_code -> description from tariff_dictionary.csv; {} on failure."""
+    """Отображение tariff_plan_code -> описание из tariff_dictionary.csv; {} при ошибке."""
     try:
         for path in _dv_candidates(search_dirs, ("tariff_dictionary.csv", os.path.join("data", "tariff_dictionary.csv"))):
             try:

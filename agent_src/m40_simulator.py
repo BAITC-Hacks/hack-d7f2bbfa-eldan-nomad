@@ -25,19 +25,19 @@ _SIM_SEG_FILTERS = (
 
 
 def _sim_is_set(value: Any) -> bool:
-    """Replica of ``pd.notna(value)`` used in scoring_core.apply_filters (scalar only)."""
+    """Копия ``pd.notna(value)`` из scoring_core.apply_filters (только скаляры)."""
     try:
         res = pd.notna(value)
-    except Exception:  # pragma: no cover - defensive
+    except Exception:  # pragma: no cover - защитная ветка
         return False
     if isinstance(res, (bool, np.bool_)):
         return bool(res)
-    # list-like value: scoring_core would fail on `if array`; treat as "set" (matches nothing).
+    # списочное значение: scoring_core упал бы на `if array`; считаем "заданным" (ничего не совпадает).
     return True
 
 
 def _sim_explicit(campaign: dict) -> list | None:
-    """Explicit id list (pilot-style campaigns) or None."""
+    """Явный список id (пилотные кампании) или None."""
     explicit = campaign.get("explicit_ids")
     if isinstance(explicit, (list, tuple, set, np.ndarray)) and len(explicit) > 0:
         return list(explicit)
@@ -45,7 +45,7 @@ def _sim_explicit(campaign: dict) -> list | None:
 
 
 def _sim_member(value: Any, allowed: set) -> bool:
-    """``value in allowed`` that is False (not TypeError) for unhashable values."""
+    """``value in allowed``, возвращающий False (а не TypeError) для нехешируемых значений."""
     try:
         return value in allowed
     except TypeError:
@@ -53,7 +53,7 @@ def _sim_member(value: Any, allowed: set) -> bool:
 
 
 def _sim_limit_int(value: Any) -> int:
-    """Contact limit as int: +inf -> effectively unlimited, NaN / invalid -> 0."""
+    """Лимит контактов как int: +inf -> фактически без ограничений, NaN / некорректное -> 0."""
     try:
         v = float(value)
     except (TypeError, ValueError):
@@ -66,7 +66,7 @@ def _sim_limit_int(value: Any) -> int:
 
 
 class ScoreSimulator:
-    """Exact, vectorised re-implementation of ``score_campaigns`` for a given ratio function."""
+    """Точная векторизованная реализация ``score_campaigns`` для заданной функции ratio."""
 
     def __init__(self, dv: Any, profile: pd.DataFrame):
         self.dv = dv
@@ -74,7 +74,7 @@ class ScoreSimulator:
         self._profile = prof
         self._n = len(prof)
         self._ids = prof["ID_NUMBER"].to_numpy()
-        # customer index per row: dedup is by ID_NUMBER (groupby), null IDs are never counted in gross
+        # индекс абонента по строке: дедупликация по ID_NUMBER (groupby), пустые ID не учитываются в gross
         cust, cust_uniq = pd.factorize(prof["ID_NUMBER"], use_na_sentinel=True)
         self._cust = cust.astype(np.int64)
         self._n_cust = len(cust_uniq)
@@ -89,7 +89,7 @@ class ScoreSimulator:
             self._uniques[col] = uniq
             self._lookup[col] = {u: i for i, u in enumerate(uniq)}
         n_arpu = len(self._uniques["arpu_segment"]) + 1
-        # combo id over (tariff, arpu) with NaN mapped to the extra last slot
+        # id комбинации (tariff, arpu); NaN отображается в дополнительный последний слот
         t = self._codes["current_tariff"].copy()
         a = self._codes["arpu_segment"].copy()
         t[t < 0] = len(self._uniques["current_tariff"])
@@ -99,24 +99,24 @@ class ScoreSimulator:
         self._tariff_codes = set(getattr(dv, "tariff_codes", []) or [])
         self._channels = set(getattr(dv, "channels", []) or [])
 
-    # ------------------------------------------------------------------ filters
+    # ------------------------------------------------------------------ фильтры
     def _col_mask(self, col: str, value: Any) -> np.ndarray:
         code = None
         try:
             code = self._lookup[col].get(value)
-        except TypeError:  # unhashable
+        except TypeError:  # нехешируемое
             code = None
         if code is None:
             return np.zeros(self._n, dtype=bool)
         return self._codes[col] == code
 
     def _indices(self, campaign: dict) -> np.ndarray:
-        """Row positions (ascending ID order) selected by the campaign filters."""
+        """Позиции строк (по возрастанию ID), отобранные фильтрами кампании."""
         explicit = _sim_explicit(campaign)
         if explicit is not None:
             try:
                 hit = self._profile["ID_NUMBER"].isin(explicit).to_numpy(dtype=bool)
-            except TypeError:  # unhashable members
+            except TypeError:  # нехешируемые элементы
                 hit = np.zeros(self._n, dtype=bool)
             return np.flatnonzero(hit)
         mask = np.ones(self._n, dtype=bool)
@@ -132,15 +132,15 @@ class ScoreSimulator:
         return np.flatnonzero(mask)
 
     def segment(self, campaign: dict) -> pd.DataFrame:
-        """Rows matching the campaign filters, sorted by ID_NUMBER, before any caps."""
+        """Строки, подходящие под фильтры кампании, отсортированные по ID_NUMBER, до любых ограничений."""
         return self._profile.iloc[self._indices(campaign)]
 
-    # ------------------------------------------------------------------ ratios
+    # ------------------------------------------------------------------ коэффициенты
     def _ratio_table(self, idx: np.ndarray, target: str, channel: str,
                      ratio_fn: Callable[[str, str, str, str], float]) -> tuple[np.ndarray, int]:
-        """Per-row lift ratio for rows ``idx`` (NaN keys passed to ratio_fn as None) and #ratio_fn errors.
+        """Коэффициент лифта по строкам ``idx`` (NaN-ключи передаются в ratio_fn как None) и число ошибок ratio_fn.
 
-        A ratio_fn exception yields ratio 0 for that (tariff, arpu) combo and is counted, not raised.
+        Исключение в ratio_fn даёт ratio 0 для этой комбинации (tariff, arpu) и учитывается, а не пробрасывается.
         """
         combos = self._combo[idx]
         uniq, inv = np.unique(combos, return_inverse=True)
@@ -159,17 +159,17 @@ class ScoreSimulator:
             vals[j] = r
         return vals[inv], errors
 
-    # ------------------------------------------------------------------ simulate
+    # ------------------------------------------------------------------ симуляция
     def simulate(self, campaigns: list[dict], ratio_fn: Callable[[str, str, str, str], float],
                  budget: float, contacts: int) -> SimResult:
-        """Score ``campaigns`` in order against starting limits ``budget`` / ``contacts``.
+        """Оценивает ``campaigns`` по порядку при стартовых лимитах ``budget`` / ``contacts``.
 
-        Campaigns with an unknown target/channel get a zero ``dropped`` entry (keeps ``per_campaign``
-        index-aligned with ``campaigns``) and are otherwise skipped, as sanitize_campaigns does.
-        A campaign may carry ``explicit_ids`` (pilot-style) — then filters are ignored.
-        Limits: +inf means unlimited, NaN / negative means none left.
-        Deviation from the organizer (robustness only): non-finite per-customer lifts count as 0
-        (the organizer zeroes only NaN); ratio_fn exceptions give ratio 0 and are counted in
+        Кампании с неизвестным target/channel получают нулевую запись ``dropped`` (сохраняет
+        выравнивание индексов ``per_campaign`` с ``campaigns``) и далее пропускаются, как в sanitize_campaigns.
+        Кампания может содержать ``explicit_ids`` (пилотный режим) — тогда фильтры игнорируются.
+        Лимиты: +inf означает без ограничений, NaN / отрицательное — ничего не осталось.
+        Отличие от организаторов (только для устойчивости): неконечные лифты по абоненту считаются 0
+        (организаторы обнуляют только NaN); исключения ratio_fn дают ratio 0 и учитываются в
         ``per_campaign[i]["ratio_errors"]``.
         """
         best = np.full(self._n_cust, -np.inf)

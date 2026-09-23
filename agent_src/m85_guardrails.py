@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 # ---------------------------------------------------------------------------
-# Guardrails: final safety net on the campaign list returned by the agent.
+# Guardrails: финальная страховка для списка кампаний, возвращаемого агентом.
 # ---------------------------------------------------------------------------
 
 _GR_SEGMENT_ALLOWED: dict[str, tuple[str, ...]] = {
@@ -20,11 +20,11 @@ _GR_SEGMENT_ALLOWED: dict[str, tuple[str, ...]] = {
     "filter_call_segment": CALL_SEGMENTS,
 }
 _GR_HARD_MAX_CAMPAIGNS = 10  # scoring_core.MAX_CAMPAIGNS
-_GR_MAX_SCAN = 1000  # max raw items consumed from the input iterable (guards against endless generators)
+_GR_MAX_SCAN = 1000  # максимум элементов, читаемых из входного iterable (защита от бесконечных генераторов)
 
 
 def _gr_is_missing(v: Any) -> bool:
-    """True for None, NaN-like floats, pandas NA and blank strings."""
+    """True для None, NaN-подобных float, pandas NA и пустых строк."""
     if v is None:
         return True
     if isinstance(v, str):
@@ -36,7 +36,7 @@ def _gr_is_missing(v: Any) -> bool:
 
 
 def _gr_str(v: Any) -> Optional[str]:
-    """Stripped string or None for missing / unconvertible values."""
+    """Обрезанная строка или None для отсутствующих / неконвертируемых значений."""
     if _gr_is_missing(v):
         return None
     if isinstance(v, (list, tuple, set, frozenset, np.ndarray)):
@@ -45,18 +45,18 @@ def _gr_str(v: Any) -> Optional[str]:
         return None
     try:
         s = str(v).strip()
-    except Exception:  # noqa: BLE001 - arbitrary garbage objects
+    except Exception:  # noqa: BLE001 - произвольные мусорные объекты
         return None
     return s or None
 
 
 def _gr_zero_ratio(current_tariff: str, arpu_segment: str, target: str, channel: str) -> float:
-    """Ratio function with zero lift: simulation then measures only cost/contacts."""
+    """Функция ratio с нулевым лифтом: симуляция измеряет только cost/contacts."""
     return 0.0
 
 
 class Guardrails:
-    """Coerce, sanitize and limit-check the final campaign list. Never raises."""
+    """Приводит, очищает и проверяет лимиты итогового списка кампаний. Никогда не бросает исключений."""
 
     def __init__(self, cfg: Config, dv: Any, sim: Any, log: Optional[RunLog] = None):
         self.cfg = cfg
@@ -71,14 +71,14 @@ class Guardrails:
         self._channels: list[str] = chans
         self._channel_ci: dict[str, str] = {c.lower(): c for c in chans}
 
-    # ------------------------------------------------------------------ public
+    # ------------------------------------------------------------------ публичное
 
     def validate(self, campaigns: Any, budget: float, contacts: int) -> list[dict]:
-        """Return a valid, deduped, limit-respecting list of 1..max_campaigns campaigns."""
+        """Возвращает валидный, дедуплицированный, укладывающийся в лимиты список из 1..max_campaigns кампаний."""
         self.issues = []
         try:
             out = self._validate(campaigns, budget, contacts)
-        except Exception as exc:  # noqa: BLE001 - guardrail must never raise
+        except Exception as exc:  # noqa: BLE001 - guardrail никогда не должен падать
             self._issue("validate_error", error=repr(exc)[:300])
             out = []
         if not out:
@@ -92,7 +92,7 @@ class Guardrails:
         return out
 
     def empty_campaign(self) -> Optional[dict]:
-        """Valid push campaign whose filters match (ideally) zero customers; None if impossible."""
+        """Валидная push-кампания, фильтры которой (в идеале) не охватывают ни одного абонента; None, если невозможно."""
         if not self._tariffs or not self._channels:
             return None
         channel = "push" if "push" in self._channels else self._channels[0]
@@ -113,7 +113,7 @@ class Guardrails:
                     break
             if best:
                 break
-        if best is None:  # every combo populated: use the smallest sub (best effort)
+        if best is None:  # все комбинации заполнены: берём наименьшую подгруппу (по возможности)
             sizes = sorted(((int(getattr(s, "n", 0)), k) for k, s in subs.items()), key=lambda t: (t[0], t[1]))
             best = sizes[0][1] if sizes else (self._tariffs[0], ARPU_SEGMENTS[0], DATA_SEGMENTS[0], CALL_SEGMENTS[0])
         frm = best[0]
@@ -129,7 +129,7 @@ class Guardrails:
             channel=channel,
         )
 
-    # ---------------------------------------------------------------- internal
+    # ---------------------------------------------------------------- внутреннее
 
     def _issue(self, kind: str, **fields: Any) -> None:
         msg = kind + ("" if not fields else " " + ", ".join(f"{k}={v}" for k, v in sorted(fields.items())))
@@ -193,7 +193,7 @@ class Guardrails:
         return out
 
     def _limits(self, budget: Any, contacts: Any) -> Optional[tuple[float, int]]:
-        """Finite, non-negative (budget, contacts); None = unusable limits (skip the check, scoring caps anyway)."""
+        """Конечные неотрицательные (budget, contacts); None = непригодные лимиты (проверка пропускается, скоринг всё равно ограничит)."""
         try:
             b, k = float(budget), float(contacts)
         except (TypeError, ValueError):
@@ -207,7 +207,7 @@ class Guardrails:
         return b, int(min(k, float(1 << 62)))
 
     def _log_overlaps(self, cs: list[dict]) -> None:
-        """Log (do not drop) campaigns whose audiences intersect: scoring allows it but pays twice."""
+        """Логирует (не удаляет) кампании с пересекающейся аудиторией: скоринг это допускает, но платим дважды."""
         seg_fn = getattr(self.sim, "segment", None)
         if seg_fn is None or len(cs) < 2:
             return
@@ -224,7 +224,7 @@ class Guardrails:
             self._issue("overlap_check_error", error=repr(exc)[:200])
 
     def _coerce(self, i: int, raw: Any) -> Optional[dict]:
-        """Sanitize one campaign; None when it must be dropped."""
+        """Очищает одну кампанию; None, если её нужно отбросить."""
         if dataclasses.is_dataclass(raw) and not isinstance(raw, type):
             raw = dataclasses.asdict(raw)
         elif isinstance(raw, pd.Series):
@@ -271,7 +271,7 @@ class Guardrails:
         )
 
     def _from_list(self, i: int, value: Any, target: str) -> Optional[list[str]]:
-        """Known source tariffs (target removed, natural order); None = drop campaign."""
+        """Известные исходные тарифы (без target, в естественном порядке); None = отбросить кампанию."""
         if isinstance(value, (list, tuple, set, frozenset, np.ndarray)):
             parts = [_gr_str(v) for v in list(value)]
             given = True
@@ -280,7 +280,7 @@ class Guardrails:
             given = s is not None
             parts = [p.strip() for p in s.split(";")] if s is not None else []
         if not given:
-            # No filter would also hit customers already on the target tariff: narrow explicitly.
+            # Без фильтра попадут и абоненты, уже сидящие на целевом тарифе: сужаем явно.
             chosen = {t for t in self._tariffs if t != target}
         else:
             chosen = set()
@@ -327,7 +327,7 @@ class Guardrails:
             return None
 
     def _enforce_limits(self, cs: list[dict], budget: float, contacts: int) -> list[dict]:
-        """Drop the last reach/money-capped campaign until the plan fits (keeps >= 1 campaign)."""
+        """Отбрасывает последнюю кампанию, упёршуюся в охват/бюджет, пока план не уложится (оставляет >= 1 кампании)."""
         if self.sim is None or not cs:
             return cs
         cs = list(cs)
@@ -350,14 +350,14 @@ class Guardrails:
 
 
 # ---------------------------------------------------------------------------
-# Reporter: human-readable markdown run report (best effort).
+# Reporter: читаемый markdown-отчёт о запуске (по возможности).
 # ---------------------------------------------------------------------------
 
 _GR_Z95 = 1.96
 
 
 def _gr_rep_fmt(v: Any, nd: int = 4) -> str:
-    """Compact, markdown-safe cell text."""
+    """Компактный, безопасный для markdown текст ячейки."""
     if v is None:
         return "—"
     if isinstance(v, (bool, np.bool_)):
@@ -376,7 +376,7 @@ def _gr_rep_fmt(v: Any, nd: int = 4) -> str:
     if isinstance(v, dict):
         try:
             txt = canonical_json(v)
-        except Exception:  # noqa: BLE001 - non-serializable values
+        except Exception:  # noqa: BLE001 - несериализуемые значения
             txt = str(v)
         return txt[:200].replace("|", "/").replace("\n", " ")
     s = str(v).replace("|", "/").replace("\n", " ").strip()
@@ -392,7 +392,7 @@ def _gr_rep_num(v: Any) -> Optional[float]:
 
 
 def _gr_rep_first(d: dict, keys: tuple[str, ...]) -> Optional[float]:
-    """First finite numeric value among ``keys`` (skips missing / None / NaN entries)."""
+    """Первое конечное числовое значение среди ``keys`` (пропускает отсутствующие / None / NaN)."""
     for k in keys:
         f = _gr_rep_num(d.get(k))
         if f is not None:
@@ -409,7 +409,7 @@ def _gr_rep_table(rows: list[dict], cols: list[str], headers: Optional[list[str]
 
 
 class Reporter:
-    """Writes agent_report.md: pilots with CI, final plan, LLM decisions, timings. Never raises."""
+    """Пишет agent_report.md: пилоты с CI, итоговый план, решения LLM, тайминги. Никогда не бросает исключений."""
 
     _PILOT_COLS = ("pilot_index", "index", "arm", "arm_id", "target_tariff", "channel", "sub", "filters",
                    "n_req", "n", "n_customers", "cost", "y", "observed_lift_ratio", "score", "reason", "error")
@@ -422,7 +422,7 @@ class Reporter:
         self.path = path
 
     def write(self, log: RunLog, campaigns: list[dict], extra: dict) -> None:
-        """Render and write markdown; OSError (and rendering errors) are swallowed."""
+        """Рендерит и записывает markdown; OSError (и ошибки рендеринга) подавляются."""
         try:
             text = self.render(log, campaigns, extra)
         except Exception as exc:  # noqa: BLE001
@@ -433,10 +433,10 @@ class Reporter:
         except (OSError, TypeError, ValueError):
             return
 
-    # ------------------------------------------------------------------ render
+    # ------------------------------------------------------------------ рендеринг
 
     def render(self, log: Optional[RunLog], campaigns: Any, extra: Any) -> str:
-        """Build the markdown text."""
+        """Собирает markdown-текст."""
         extra = extra if isinstance(extra, dict) else {}
         lines: list[str] = ["# Agent report", ""]
         mode = extra.get("llm_mode")
@@ -554,7 +554,7 @@ class Reporter:
         return out
 
     def _details_section(self, extra: dict) -> list[str]:
-        """Any other extra keys (e.g. final_sim, allocate, review, stages, explore), sorted by key."""
+        """Любые прочие дополнительные ключи (например final_sim, allocate, review, stages, explore), отсортированные по ключу."""
         keys = sorted((k for k in extra if str(k) not in self._EXTRA_RENDERED), key=str)
         if not keys:
             return []

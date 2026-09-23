@@ -22,7 +22,7 @@
 
 ## Быстрый старт
 
-Нужен Python 3.13 (зафиксирован в `.python-version`).
+Нужен Python 3.13 (зафиксирован в `.python-version`); чистая установка проверена также на Python 3.12.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
@@ -44,6 +44,20 @@ LLM подключать не обязательно: по умолчанию `A
 OPENAI_API_KEY=sk-...
 AGENT_LLM_MODE=decide                 # off | advise | decide
 ```
+
+**Для жюри: запуск с LLM.** Одного `OPENAI_API_KEY` недостаточно: пока `AGENT_LLM_MODE` не задан, агент
+работает без LLM, и `make_submission.py` побайтно воспроизводит `submission.csv` из репозитория. Чтобы
+включить LLM-агентов в контур решений, задайте обе переменные окружения:
+
+```bash
+export OPENAI_API_KEY=sk-...
+export AGENT_LLM_MODE=decide          # или advise
+python make_submission.py
+```
+
+С живым LLM ответы модели могут изменить выбор пилотов, и тогда `submission.csv` будет отличаться от
+закоммиченного. Вызовы LLM ограничены по времени (30 с на вызов, 90 с суммарно), а при ошибке API агент
+продолжает работу на детерминированном движке.
 
 | Команда | Что проверяет | Ожидаемый результат |
 |---|---|---|
